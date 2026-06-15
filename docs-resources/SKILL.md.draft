@@ -1,0 +1,107 @@
+---
+name: android-reverse-mac
+description: Mac 上做安卓逆向时使用。强制"先 grep 后 read"的渐进探索协议，避免把整个 jadx 反编译目录倒进上下文。Triggers on："分析 apk"、"逆向 android"、"抓 http/https"、"frida hook"、"绕过 ssl pinning"、"提取接口"、"找签名算法"、"smali 编辑"、"重打包 apk"、"加固识别"、"批量扫 apk"。
+license: CC-BY-4.0
+metadata:
+  author: Jiacheng Li
+  version: 2.0.0
+  audience: "local LLM (128k ctx, easily stalls)"
+  reference: "Mac 安卓逆向工具与工作流指南.md (in this folder, ~750 lines, only open sections you need)"
+---
+
+# Android Reverse Engineering on Mac — Skill 协议
+
+> 本 skill 是**目录索引 + 决策树**，详细命令见 `Mac 安卓逆向工具与工作流指南.md`。
+> 任何时候面对安卓逆向任务，**先读 §A 再行动**。
+
+## §A 七条铁律（违反必爆上下文）
+
+1. **永远先 count / grep / outline，再 read 全文**
+2. 一次只 read 一个文件 ≤ 200 行；超过用 `head -200` 或 `sed -n '100,300p'`
+3. 用 grep 找入口 + jadx outline 看结构，**不要把目录树倒进上下文**
+4. 任务超过 5 步就写中间笔记到 `/tmp/work-notes.md`
+5. 每个 grep 加 `| head -20`，从不裸跑
+6. 用 androguard / aapt2 / apkid 拿摘要，**jadx 只用来精读单个类**
+7. 不确定就停下问用户
+
+## §B Token 预算（128k 上下文 → 80k 可用）
+
+| 操作 | token | 用法 |
+|---|---|---|
+| `aapt2 dump badging` | 200-500 | ✅ 总是先跑 |
+| `apkid` | 200 | ✅ 加固识别 |
+| `androguard apkid` | 100 | ✅ 总览 |
+| `apktool d --no-src` 后看 manifest | 500-2000 | ✅ |
+| `grep ... \| head -20` | 200-1000 | ✅ 找入口 |
+| 单个 jadx Java 文件 | 1000-5000 | ⚠️ 控制 |
+| 整 jadx 目录 / `find` | 30000+ | ❌ 禁止 |
+
+预算分配：探索 20k + 精读 30k + 思考输出 30k。
+
+## §C 用户意图 → 工作流映射
+
+| 用户说 | 跳到指南 | 关键工具 |
+|---|---|---|
+| "逆向这个 app" / "分析 apk" | §3.A | aapt2 + apkid + apktool |
+| "抓 http/https 接口" | §3.B | mitmproxy + adb reverse |
+| "绕过 ssl pinning / root 检测" | §3.C | objection 一键 |
+| "找 X 签名/加密算法" | §3.E | strings + Ghidra + frida hook |
+| "动态改逻辑" | §3.D | frida + 自写 hook.js |
+| "批量扫一批 apk" | §3.F | androguard Python 脚本 |
+| "加固/壳分析" | §3.F + apkid | apkid + quark |
+
+## §D 渐进式探索协议（4 阶段）
+
+```
+阶段 1 (< 2k token)：摘要
+  aapt2 dump badging + apkid + androguard apkid
+  → 包名 / 版本 / 权限 / 加固
+
+阶段 2 (< 5k token)：地形
+  apktool d --no-src
+  ls + manifest 头 50 行 + dex 数 + .so 列表
+
+阶段 3 (< 10k token，按需)：定位
+  jadx --no-res 反编译到磁盘
+  grep -rln 关键词找入口类
+  按需 read 单个 < 200 行类
+
+阶段 4 (< 20k token，按需)：精读
+  逐方法 read，baksmali 验证
+  必要时 frida 动态验证
+```
+
+**永远不在阶段 3 之前进 jadx 源码**。
+
+## §E 我 Mac 当前已装的核心工具
+
+`jadx` `apktool` `smali` `baksmali` `mitmproxy` `frida` `objection` `androguard` `apkid` `quark` `scrcpy` `ghidraRun` `docker` `adb` `apksigner` `aapt2` `zipalign`。
+ANDROID_HOME=`/opt/homebrew/share/android-commandlinetools`。
+GUI: `/Applications/Android Studio.app`、`/Applications/Reqable.app`。
+
+## §F 卡住自救
+
+| 症状 | 动作 |
+|---|---|
+| 上下文快满 | 写 `/tmp/work-notes.md` → 让用户重启会话 |
+| 不知下一步 grep 什么 | 回 §3.X 命令清单按顺序跑 |
+| jadx 反编译失败 | 退回 `apktool d` 看 smali |
+| 不知命令怎么写 | 看指南 §4 速查 |
+
+## §G 详细命令
+
+**详细命令见同目录** `Mac 安卓逆向工具与工作流指南.md` 的 §3（工作流）和 §4（速查）。
+**按需打开**，不要一开始全 read。
+
+---
+
+**安装本 skill**（用户审核完想用时）：
+
+```bash
+mkdir -p ~/.claude/skills/android-reverse-mac
+# 把这个 SKILL.md.draft 改名复制过去
+cp "SKILL.md.draft" ~/.claude/skills/android-reverse-mac/SKILL.md
+# 同时把详细指南复制为 reference（skill 自动加载只有 SKILL.md，detailed 按需拉）
+cp "Mac 安卓逆向工具与工作流指南.md" ~/.claude/skills/android-reverse-mac/reference.md
+# 重启 Claude Code 后会在 trigger 关键词触发
+```

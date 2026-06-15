@@ -1,0 +1,47 @@
+{
+  "name": "rev-agent",
+  "version": "0.1.0",
+  "description": "本地 LLM agent CLI，专为安卓逆向场景（小模型 + 4 阶段渐进探索协议）",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "rev-agent": "./src/index.tsx"
+  },
+  "scripts": {
+    "start": "bun src/index.tsx",
+    "dev": "bun --hot src/index.tsx",
+    "build": "bun build src/index.tsx --outdir dist --target bun --minify",
+    "compile": "bun build src/index.tsx --compile --outfile dist/rev-agent",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "format": "biome format --write src",
+    "demo": "bash scripts/demo.sh"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "3.0.81",
+    "@ai-sdk/openai": "3.0.67",
+    "@clack/prompts": "^1.2.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@opentui/core": "0.1.102",
+    "@opentui/react": "0.1.102",
+    "ai": "6.0.196",
+    "commander": "^14",
+    "fzf": "^0.5",
+    "marked": "^15",
+    "nanoid": "^5",
+    "pino": "^10",
+    "react": "^19",
+    "smol-toml": "1.6.1",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/node": "22.10.5",
+    "@types/react": "19.1.10",
+    "bun-types": "1.3.14",
+    "typescript": "5.7.3"
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}

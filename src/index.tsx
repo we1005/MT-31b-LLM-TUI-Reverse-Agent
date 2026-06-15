@@ -1,0 +1,78 @@
+#!/usr/bin/env bun
+/**
+ * rev-agent CLI 入口。
+ * 模式：
+ *   --once <task>     非交互，跑一个任务到完成（无 TUI，纯 stdout）
+ *   --interactive     默认，进 OpenTUI（task #21 尚未实现，先 fallback 到 --once）
+ *   --version         打印版本立即退出（< 200ms）
+ *
+ * commander 解析 + 短路 → 仅在需要时 import LLM / Agent 模块（保持冷启动快）。
+ */
+import { Command } from 'commander';
+import pkg from '../package.json' with { type: 'json' };
+
+const program = new Command()
+  .name('rev-agent')
+  .description('本地 LLM agent CLI（专为安卓逆向，强制 4 阶段渐进探索协议）')
+  .version(pkg.version, '-V, --version', '打印版本退出')
+  .option('-b, --backend <name>', 'LLM 后端: lemonade | lm-studio | ollama | local | claude | openai', 'lemonade')
+  .option('-m, --model <id>', 'model id（按 backend 默认）')
+  .option('-u, --base-url <url>', '覆盖 backend 默认 baseURL')
+  .option('-k, --api-key <key>', '覆盖 API key（云端 backend 用）')
+  .option('--verbose', '用 §2 长版 system prompt（默认 §1 短版）')
+  .option('--once <task>', '非交互模式：单任务跑到完成，结果走 stdout')
+  .option('--auto-approve', '所有工具自动放行（仅 --once 推荐）')
+  .option('--workdir <path>', 'agent 默认 cwd（影响 grep / read_file 的相对路径）')
+  .option('--budget <tokens>', 'token 预算上限', String(80_000))
+  .option('--notes <path>', '工作笔记路径', '/tmp/work-notes.md')
+  .option('--mcp-server', '进入 MCP server 模式（stdio transport，给 Claude Code/Cursor 反向调用）')
+  .option('--allow-write', 'MCP server 模式下放行 write 类工具（默认拒）')
+  .allowExcessArguments(false);
+
+await program.parseAsync(process.argv);
+const opts = program.opts();
+
+// 短路 --version（不 import 任何重模块）
+// commander 自动处理 --version 退出
+
+// MCP server 模式优先：进 stdio loop 永不返回，直到 SIGTERM/SIGINT
+if (opts['mcpServer']) {
+  const { runMcpServer } = await import('./runtime/run-mcp-server.ts');
+  const code = await runMcpServer({
+    workdir: opts['workdir'] as string | undefined,
+    allowWrite: !!opts['allowWrite'],
+  });
+  process.exit(code);
+}
+
+// 懒加载重模块
+const { runOnce } = await import('./runtime/run-once.ts');
+const { runInteractive } = await import('./runtime/run-interactive.ts');
+
+const taskText = (opts['once'] as string | undefined) ?? '';
+const exitCode = taskText
+  ? await runOnce({
+      task: taskText,
+      backend: opts['backend'] as never,
+      model: opts['model'] as string | undefined,
+      baseURL: opts['baseUrl'] as string | undefined,
+      apiKey: opts['apiKey'] as string | undefined,
+      verbose: !!opts['verbose'],
+      autoApprove: !!opts['autoApprove'],
+      workdir: opts['workdir'] as string | undefined,
+      budget: Number(opts['budget']),
+      notesPath: opts['notes'] as string,
+    })
+  : await runInteractive({
+      backend: opts['backend'] as never,
+      model: opts['model'] as string | undefined,
+      baseURL: opts['baseUrl'] as string | undefined,
+      apiKey: opts['apiKey'] as string | undefined,
+      verbose: !!opts['verbose'],
+      autoApprove: !!opts['autoApprove'],
+      workdir: opts['workdir'] as string | undefined,
+      budget: Number(opts['budget']),
+      notesPath: opts['notes'] as string,
+    });
+
+process.exit(exitCode);
