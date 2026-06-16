@@ -49,6 +49,13 @@ const BACKEND_DEFAULTS: Record<Backend, { baseURL?: string; model: string; apiKe
     model: 'gpt-4o',
     apiKey: '', // 必须从 env 或 opts.apiKey
   },
+  volcengine: {
+    // 火山引擎方舟 Coding Plan endpoint（不是 ark.cn-beijing.volces.com/api/v3，那是按量计费！）
+    // 必须用 /api/coding/v3 才走 Coding Plan 套餐额度
+    baseURL: 'https://ark.cn-beijing.volces.com/api/coding/v3',
+    model: 'doubao-seed-code',
+    apiKey: '', // 必须从 env (ARK_API_KEY) 或 opts.apiKey
+  },
 };
 
 export function createLLM(opts: CreateLLMOpts): LanguageModel {
@@ -87,6 +94,15 @@ export function createLLM(opts: CreateLLMOpts): LanguageModel {
       const provider = createOpenAI({ apiKey });
       return provider(model);
     }
+    case 'volcengine': {
+      const apiKey = opts.apiKey ?? process.env['ARK_API_KEY'];
+      if (!apiKey) {
+        throw new Error('ARK_API_KEY env var or --api-key required for backend=volcengine');
+      }
+      const baseURL = opts.baseURL ?? defaults.baseURL;
+      const provider = createOpenAI({ baseURL, apiKey });
+      return provider.chat(model);
+    }
   }
 }
 
@@ -108,4 +124,5 @@ export const SUPPORTED_BACKENDS: Backend[] = [
   'local',
   'claude',
   'openai',
+  'volcengine',
 ];

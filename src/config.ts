@@ -8,14 +8,15 @@ import { parse as parseToml } from 'smol-toml';
 
 /**
  * 后端类型：
- * - `lemonade`  — AMD lemonade-sdk（默认 :8000/api/v1，OpenAI 兼容）
- * - `lm-studio` — LM Studio（默认 :1234/v1，OpenAI 兼容）
- * - `ollama`    — Ollama（默认 :11434/v1，OpenAI 兼容）
- * - `local`     — 任意 OpenAI 兼容本地 endpoint，必须显式给 baseURL
- * - `claude`    — Anthropic 云
- * - `openai`    — OpenAI 云
+ * - `lemonade`   — AMD lemonade-sdk（默认 :8000/api/v1，OpenAI 兼容）
+ * - `lm-studio`  — LM Studio（默认 :1234/v1，OpenAI 兼容）
+ * - `ollama`     — Ollama（默认 :11434/v1，OpenAI 兼容）
+ * - `local`      — 任意 OpenAI 兼容本地 endpoint，必须显式给 baseURL
+ * - `claude`     — Anthropic 云
+ * - `openai`     — OpenAI 云
+ * - `volcengine` — 火山引擎方舟 Coding Plan（OpenAI 兼容，doubao/kimi/glm/deepseek/minimax 等套餐 SKU）
  */
-export type Backend = 'lemonade' | 'lm-studio' | 'ollama' | 'local' | 'claude' | 'openai';
+export type Backend = 'lemonade' | 'lm-studio' | 'ollama' | 'local' | 'claude' | 'openai' | 'volcengine';
 
 export interface Config {
   backend: Backend;
