@@ -2,7 +2,9 @@
  * Grep / ripgrep 工具。
  * 优先用 ripgrep（rg），强制 head 截断，避免上万行命中淹没上下文。
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { delimiter as pathDelimiter, join as pathJoin } from 'node:path';
 import { z } from 'zod';
 import type { Tool } from './index.ts';
 
@@ -38,10 +40,13 @@ export interface GrepResult {
 }
 
 export async function runGrep(args: GrepInput): Promise<GrepResult> {
-  // 优先 rg，fallback 到 grep
-  const useRg = await hasCommand('rg');
-  const cmd = useRg ? 'rg' : 'grep';
-  const grepArgs = buildArgs(args, useRg);
+  // 解析出「真实可用」的 rg 绝对路径（跳过 shell function 假路径），拿不到再退回 BSD/GNU grep。
+  // 移植自 cc-haha(泄露的 Claude Code)的 findUsableSystemRipgrep：spawn 无法解析 shell function，
+  // 之前 `which rg` 命中的是 Claude Code 注入的 rg() function → spawn('rg') 找不到 → 静默退回
+  // BSD grep BRE → `|` 交替失效。见 CTF benchmark D5。这里改为遍历 PATH 候选 + --version 验证。
+  const rgPath = resolveRipgrepPath();
+  const cmd = rgPath ?? 'grep';
+  const grepArgs = buildArgs(args, rgPath !== null);
 
   return new Promise<GrepResult>((resolve) => {
     const child = spawn(cmd, grepArgs, { timeout: 10_000 });
@@ -115,12 +120,48 @@ function buildArgs(args: GrepInput, useRg: boolean): string[] {
   return out;
 }
 
-async function hasCommand(name: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const child = spawn('which', [name]);
-    child.on('close', (code) => resolve(code === 0));
-    child.on('error', () => resolve(false));
-  });
+// rg 路径解析结果缓存（每进程只探测一次）。null = 探测过但没有可用 rg。
+let cachedRgPath: string | null | undefined;
+
+/**
+ * 找出真实可用的 ripgrep 绝对路径，跳过 shell function / 别名等 spawn 无法执行的伪路径。
+ * 移植自 cc-haha 的 findUsableSystemRipgrep：遍历 PATH 里的 `rg` 候选，逐个 `--version`，
+ * 只采纳输出以 "ripgrep " 开头的真二进制。找不到返回 null（调用方退回 BSD/GNU grep -E）。
+ * 与 cc-haha 不同：**不联网下载** rg 二进制（逆向环境要离线纯净），找不到就用 grep 兜底。
+ */
+function resolveRipgrepPath(): string | null {
+  if (cachedRgPath !== undefined) return cachedRgPath;
+
+  const isWin = process.platform === 'win32';
+  const exts = isWin ? (process.env['PATHEXT'] || '.EXE;.CMD;.BAT').split(';').filter(Boolean) : [''];
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  const add = (p: string) => {
+    const key = isWin ? p.toLowerCase() : p;
+    if (p && !seen.has(key)) {
+      seen.add(key);
+      candidates.push(p);
+    }
+  };
+  for (const dir of (process.env['PATH'] ?? '').split(pathDelimiter)) {
+    if (!dir) continue;
+    for (const ext of exts) add(pathJoin(dir, `rg${ext.toLowerCase()}`));
+  }
+
+  for (const cand of candidates) {
+    if (!existsSync(cand)) continue;
+    try {
+      const r = spawnSync(cand, ['--version'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+      if (r.status === 0 && typeof r.stdout === 'string' && r.stdout.startsWith('ripgrep ')) {
+        cachedRgPath = cand;
+        return cand;
+      }
+    } catch {
+      // skip this candidate
+    }
+  }
+  cachedRgPath = null;
+  return null;
 }
 
 export const grepTool: Tool<GrepInput, GrepResult> = {

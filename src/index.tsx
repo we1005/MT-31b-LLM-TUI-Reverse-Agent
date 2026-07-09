@@ -20,6 +20,7 @@ const program = new Command()
   .option('-u, --base-url <url>', '覆盖 backend 默认 baseURL')
   .option('-k, --api-key <key>', '覆盖 API key（云端 backend 用）')
   .option('--verbose', '用 §2 长版 system prompt（默认 §1 短版）')
+  .option('--resume', '从 --notes 指定的工作笔记续传（用 §3 续传 prompt，注入笔记接着干）')
   .option('--once <task>', '非交互模式：单任务跑到完成，结果走 stdout')
   .option('--auto-approve', '所有工具自动放行（仅 --once 推荐）')
   .option('--workdir <path>', 'agent 默认 cwd（影响 grep / read_file 的相对路径）')
@@ -49,30 +50,35 @@ if (opts['mcpServer']) {
 const { runOnce } = await import('./runtime/run-once.ts');
 const { runInteractive } = await import('./runtime/run-interactive.ts');
 
+const resume = !!opts['resume'];
 const taskText = (opts['once'] as string | undefined) ?? '';
-const exitCode = taskText
-  ? await runOnce({
-      task: taskText,
-      backend: opts['backend'] as never,
-      model: opts['model'] as string | undefined,
-      baseURL: opts['baseUrl'] as string | undefined,
-      apiKey: opts['apiKey'] as string | undefined,
-      verbose: !!opts['verbose'],
-      autoApprove: !!opts['autoApprove'],
-      workdir: opts['workdir'] as string | undefined,
-      budget: Number(opts['budget']),
-      notesPath: opts['notes'] as string,
-    })
-  : await runInteractive({
-      backend: opts['backend'] as never,
-      model: opts['model'] as string | undefined,
-      baseURL: opts['baseUrl'] as string | undefined,
-      apiKey: opts['apiKey'] as string | undefined,
-      verbose: !!opts['verbose'],
-      autoApprove: !!opts['autoApprove'],
-      workdir: opts['workdir'] as string | undefined,
-      budget: Number(opts['budget']),
-      notesPath: opts['notes'] as string,
-    });
+// --once 或 --resume 都走非交互 runOnce（--resume 时 task 默认"继续"）；否则进 TUI。
+const exitCode =
+  taskText || resume
+    ? await runOnce({
+        task: taskText || (resume ? '继续' : ''),
+        resume,
+        backend: opts['backend'] as never,
+        model: opts['model'] as string | undefined,
+        baseURL: opts['baseUrl'] as string | undefined,
+        apiKey: opts['apiKey'] as string | undefined,
+        verbose: !!opts['verbose'],
+        autoApprove: !!opts['autoApprove'],
+        workdir: opts['workdir'] as string | undefined,
+        budget: Number(opts['budget']),
+        notesPath: opts['notes'] as string,
+      })
+    : await runInteractive({
+        resume,
+        backend: opts['backend'] as never,
+        model: opts['model'] as string | undefined,
+        baseURL: opts['baseUrl'] as string | undefined,
+        apiKey: opts['apiKey'] as string | undefined,
+        verbose: !!opts['verbose'],
+        autoApprove: !!opts['autoApprove'],
+        workdir: opts['workdir'] as string | undefined,
+        budget: Number(opts['budget']),
+        notesPath: opts['notes'] as string,
+      });
 
 process.exit(exitCode);

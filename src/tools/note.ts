@@ -10,8 +10,30 @@ import { z } from 'zod';
 import type { Tool } from './index.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// src/tools/note.ts → 上三级 = MT-NP管理器/
-const TEMPLATE_PATH = resolve(HERE, '..', '..', '..', 'LLM工作笔记模板.md');
+// 模板候选路径，按顺序探测（兼容迁移前/后 + 自定义部署），同 prompts.ts 做法。
+// 旧代码硬编码 resolve(HERE,'..','..','..','LLM工作笔记模板.md') 指向迁移前的 MT-NP管理器/，
+// 迁移后失效 → cp 静默失败 → 笔记没有 §0-§8 结构。
+const TEMPLATE_CANDIDATES = [
+  // 迁移后：rev-agent/docs-resources/LLM工作笔记模板.md
+  resolve(HERE, '..', '..', 'docs-resources', 'LLM工作笔记模板.md'),
+  // 项目根：rev-agent/LLM工作笔记模板.md
+  resolve(HERE, '..', '..', 'LLM工作笔记模板.md'),
+  // 迁移前：rev-agent/../LLM工作笔记模板.md
+  resolve(HERE, '..', '..', '..', 'LLM工作笔记模板.md'),
+];
+
+/** 探测第一个存在的模板文件，找不到返回 null（append 时会自动建空文件） */
+async function findTemplate(): Promise<string | null> {
+  for (const p of TEMPLATE_CANDIDATES) {
+    try {
+      await stat(p);
+      return p;
+    } catch {
+      // skip
+    }
+  }
+  return null;
+}
 
 export const noteInputSchema = z.object({
   section: z
@@ -43,11 +65,12 @@ async function ensureFile(path: string): Promise<void> {
   try {
     await stat(path);
   } catch {
-    // 不存在：先复制模板
+    // 不存在：先复制模板（探测真实模板路径，找不到就跳过，append 时自动建空文件）
+    const template = await findTemplate();
+    if (!template) return;
     try {
-      await copyFile(TEMPLATE_PATH, path);
+      await copyFile(template, path);
     } catch (e: unknown) {
-      // 模板不存在也无妨，append 时会自动创建
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw e;
       }

@@ -56,24 +56,40 @@ export interface AgentOpts {
  *  2) 文本较长（>240 字符）且不以过渡语结尾——通常是已经在组织成段的答案
  * 反之，短文本、或以"让我…/换个方式…/进入阶段…/let me…"等过渡语收尾 → 判为过程态。
  */
-function looksLikeConclusion(text: string): boolean {
+/**
+ * 判断助手本轮文本是否以「宣布下一步却没做」的续跑意图结尾（如"让我换个方式…/我要做：用 jadx…"）。
+ * 这是 CTF benchmark 里唯一验证过的真实断链信号（raw-apk-3 / security-1/2 都栽在这）。
+ * 只看结尾意图、不看长度——短的正常收尾（如"进程正常退出。"）不该被误判。
+ * 显式「## 最终结论」标记直接视为已完成（返回 false）。
+ */
+function endsWithContinuationIntent(text: string): boolean {
   const t = text.trim();
-  if (!t) return false;
-  // 1) 显式结论标记
-  if (/##\s*最终结论|最终(答案|结论)|final\s+(answer|conclusion)/i.test(t)) return true;
-  // 2) 结尾是过渡语 → 明确判为过程态（无论长短）
-  const TRANSITION_TAIL = [
-    /让我[^。\n]{0,20}$/,
-    /(换个|换一种|另一种)方式[^。\n]{0,10}$/,
-    /(接下来|下一步|现在)[^。\n]{0,20}$/,
-    /进入阶段\s*[0-9一二三四][^。\n]{0,20}$/,
-    /(先|再)(来|去|跑|搜|读|试|看|确认|提取)[^。\n]{0,20}$/,
-    /\blet me\b[^.\n]{0,40}$/i,
-    /\bi'?ll\s+(now\s+|then\s+)?(run|search|grep|read|extract|check|look|try)[^.\n]{0,40}$/i,
+  if (!t) return true; // 空文本 + 无工具调用 = 退化的空停，视为需要 nudge
+  if (/##\s*最终结论|最终(答案|结论)|final\s+(answer|conclusion)/i.test(t)) return false;
+  // 尾行是 markdown 标题（如 "## 阶段2：grep 搜索…"）= 打了个章节标题就停手，属断链宣布。
+  const lastLine = t.split('\n').map((l) => l.trim()).filter(Boolean).pop() ?? '';
+  if (/^#{1,6}\s/.test(lastLine)) return true;
+  // 取「最后一句」：按换行/中文句号/英文句点/感叹问号切，取最后一个非空段。
+  // 续跑意图（"让我…/我要做…/进入阶段2…/let me…"）通常独占最后一句，只在这一句里判，
+  // 避免被正文里前面的句子干扰、也不强求贴 $（尾句可能带标点或 markdown 星号）。
+  const segs = t
+    .split(/[\n。！？!?]|\.(?=\s|$)/)
+    .map((s) => s.replace(/[*_`#\s]/g, '').trim())
+    .filter(Boolean);
+  const last = segs[segs.length - 1] ?? '';
+  if (!last) return false;
+  const INTENT = [
+    /让我/,
+    /我(要|需要|准备|来|现在|接下来)/,
+    /(换个|换一种|另一种)方式/,
+    /(接下来|下一步)/,
+    /进入阶段/,
+    /(先|再)(来|去|跑|搜|读|试|看|确认|提取)/,
+    /\blet me\b/i,
+    /\bi'?ll\b/i,
+    /\bnext\b.*\bi/i,
   ];
-  if (TRANSITION_TAIL.some((re) => re.test(t))) return false;
-  // 3) 足够长且不以过渡语结尾 → 视为已在组织答案（阈值 180，容纳一段紧凑的多问答复）
-  return t.length > 180;
+  return INTENT.some((re) => re.test(last));
 }
 
 export class Agent extends EventEmitter {
@@ -155,16 +171,25 @@ export class Agent extends EventEmitter {
         // 3) 没有 tool calls：本应结束，但要防两类断链（见 CTF benchmark）：
         //    (a) 宣布下一步却没发工具调用（security-3/raw-apk-3 打印"进入阶段2"后直接 done）
         //    (b) 一路"让我换个方式…"过程叙述，最终答案从未写出（security-1/2/3、raw-apk-1）
-        //    统一判据：本轮文本不是「实质结论」→ 注入一次收尾/续跑指令。
-        //    关键：即使 budget 已 red 也要 nudge —— 到点了更要逼它先落一版答案再停，
-        //    只在 nudge 次数超限时才真放行（止损兜底）。
+        //    可疑判据 = 两个正交信号任一命中（finishReason 移植自 opencode prompt.ts:1464）：
+        //    (1) 文本以「宣布下一步却没做」结尾（endsWithContinuationIntent）——benchmark 里唯一
+        //        验证过的真实断链，不分 finishReason 都要拦（raw-apk-3 的 finishReason 就是 stop）。
+        //    (2) finishReason 异常(unknown/length/error/other) 且 文本空——本地 OpenAI 兼容端点被
+        //        截断/异常停的退化空停，也要 nudge。
+        //    finishReason 干净(stop)且文本不是续跑意图结尾 → 信任完成（简单任务正常收尾不误伤）。
+        //    budget red 时也 nudge（逼它先落答案再停）；超 nudge 次数才真放行。
         if (!result.toolCalls || result.toolCalls.length === 0) {
           const text = result.text ?? '';
-          const isConclusion = looksLikeConclusion(text);
-          if (!isConclusion && this.nudgeCount < this.opts.maxNudges) {
+          const finish = result.finishReason ?? 'unknown';
+          const finishIsClean = finish === 'stop' || finish === 'end_turn';
+          const suspicious = endsWithContinuationIntent(text) || (!finishIsClean && text.trim().length < 40);
+          if (suspicious && this.nudgeCount < this.opts.maxNudges) {
             this.nudgeCount++;
             const red = this.opts.budget.level() === 'red';
-            this.emit('warn', `未产出实质结论就要收尾（nudge ${this.nudgeCount}/${this.opts.maxNudges}${red ? ', budget red 强制收尾' : ''}）`);
+            this.emit(
+              'warn',
+              `未产出实质结论就要收尾（finishReason=${finish}, nudge ${this.nudgeCount}/${this.opts.maxNudges}${red ? ', budget red 强制收尾' : ''}）`,
+            );
             this.messages.push({
               role: 'user',
               content: red
@@ -175,7 +200,7 @@ export class Agent extends EventEmitter {
             });
             continue;
           }
-          this.emit('done', result.finishReason ?? 'stop');
+          this.emit('done', finish);
           return;
         }
 

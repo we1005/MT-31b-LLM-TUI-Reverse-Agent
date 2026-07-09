@@ -7,10 +7,13 @@ import { Budget } from '../budget.ts';
 import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
 import { loadSystemPrompt } from '../prompts.ts';
+import { buildResumeContext } from '../resume.ts';
 import { ToolRegistry } from '../tools/index.ts';
 
 export interface RunOnceOpts {
   task: string;
+  /** 从工作笔记续传：用 §3 续传 prompt + 注入笔记为首条消息 */
+  resume?: boolean;
   backend: Backend;
   model?: string;
   baseURL?: string;
@@ -34,7 +37,26 @@ const red = (s: string) => color(s, 31);
 export async function runOnce(opts: RunOnceOpts): Promise<number> {
   if (opts.workdir) process.chdir(opts.workdir);
 
-  const systemPrompt = await loadSystemPrompt({ section: opts.verbose ? '§2' : '§1' });
+  // 续传：先构建续传上下文（读笔记 + 校验），失败直接退出，不静默退化成新任务。
+  let resumeMessage: string | undefined;
+  if (opts.resume) {
+    const ctx = await buildResumeContext(opts.notesPath, opts.task);
+    if (!ctx.ok) {
+      process.stderr.write(red(`✗ ${ctx.error}\n`));
+      return 1;
+    }
+    resumeMessage = ctx.message;
+    process.stderr.write(
+      dim(`[rev-agent] 续传模式：笔记 ${opts.notesPath}（${ctx.noteLines} 行）\n`) +
+        (ctx.nextSteps
+          ? cyan('  下一步（§4）：\n') + dim(ctx.nextSteps.split('\n').map((l) => `    ${l}`).join('\n') + '\n')
+          : yellow('  笔记无明确 §4 下一步，agent 将通读后自行判断\n')),
+    );
+  }
+
+  // 续传用 §3；否则 §1（--verbose 用 §2）。§9 避坑块会自动拼到 §1/§2/§3 末尾。
+  const section = opts.resume ? '§3' : opts.verbose ? '§2' : '§1';
+  const systemPrompt = await loadSystemPrompt({ section });
   const model = createLLM({
     backend: opts.backend,
     model: opts.model,
@@ -47,7 +69,7 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
   process.stderr.write(
     dim(
       `[rev-agent] backend=${opts.backend} model=${opts.model ?? 'default'} ` +
-        `prompt=${opts.verbose ? '§2' : '§1'} (${Buffer.byteLength(systemPrompt)} bytes) ` +
+        `prompt=${section} (${Buffer.byteLength(systemPrompt)} bytes) ` +
         `budget=${budget.max}\n`,
     ),
   );
@@ -93,7 +115,8 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
   agent.on('warn', (msg) => process.stderr.write(yellow(`⚠ ${msg}\n`)));
   agent.on('error', (e) => process.stderr.write(red(`✗ ${e.message}\n`)));
 
-  agent.addUserMessage(opts.task);
+  // 续传时首条消息是注入了笔记全文的续传上下文；否则是用户原始任务。
+  agent.addUserMessage(resumeMessage ?? opts.task);
 
   try {
     await agent.run();
