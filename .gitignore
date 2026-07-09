@@ -6,3 +6,7 @@ bun.lockb
 .env.local
 *.log
 /tmp/
+# 测试/benchmark 时反编译产生的临时产物
+docs-resources/jadx-out/
+docs-resources/unzipped/
+docs-resources/apktool-out/

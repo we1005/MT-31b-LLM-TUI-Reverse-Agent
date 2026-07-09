@@ -101,9 +101,11 @@ function buildArgs(args: GrepInput, useRg: boolean): string[] {
     }
     out.push(args.pattern, args.path);
   } else {
-    out.push('-rn'); // recursive + line number
+    // BSD/GNU grep fallback：默认走 -E（ERE），否则 BSD grep 是 BRE，pattern 里的 `|`
+    // 交替会退化成字面量，导致 "MCP|mcp" 这类查询 0 命中（见 CTF benchmark D5）。
+    // fixedString 时用 -F 字面量搜索，与 -E 互斥，故二选一。
+    out.push(args.fixedString ? '-rnF' : '-rEn');
     if (args.ignoreCase) out.push('-i');
-    if (args.fixedString) out.push('-F');
     if (args.glob) {
       out.push('--include');
       out.push(args.glob);

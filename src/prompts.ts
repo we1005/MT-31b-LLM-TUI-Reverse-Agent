@@ -62,7 +62,25 @@ export async function loadSystemPrompt(opts: LoadPromptOptions = {}): Promise<st
   if (!fence) {
     throw new Error(`no code fence found in section ${section}`);
   }
-  return fence[1].trim();
+  let prompt = fence[1].trim();
+
+  // §9「通用避坑块」自动追加到实操类 section（§1/§2/§3）末尾。
+  // 消 CTF benchmark 暴露的高频失败模式，且不改 §1–§8 原文。§9 缺失则跳过（向后兼容）。
+  if (section === '§1' || section === '§2' || section === '§3') {
+    const guard = extractGuardBlock(raw);
+    if (guard) prompt = `${prompt}\n\n${guard}`;
+  }
+  return prompt;
+}
+
+/** 抽 §9 里的首个 code fence（通用避坑块），无 §9 返回 null */
+function extractGuardBlock(raw: string): string | null {
+  const start = raw.indexOf('## §9');
+  if (start < 0) return null;
+  const nextMatch = raw.slice(start + 5).match(/\n## §\d/);
+  const end = nextMatch ? start + 5 + nextMatch.index! : raw.length;
+  const fence = raw.slice(start, end).match(/```([\s\S]*?)```/);
+  return fence ? fence[1].trim() : null;
 }
 
 /** 列出所有可用的 prompt section（不解析正文，只看锚点）*/

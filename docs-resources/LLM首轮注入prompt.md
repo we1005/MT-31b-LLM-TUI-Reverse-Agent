@@ -226,3 +226,40 @@ Native：ghidraRun, capstone
 ```
 [复制 §5 调试版]
 ```
+
+---
+
+## §9 通用避坑块（rev-agent 自动追加到 §1/§2/§3 末尾，勿手改）
+
+> 本节由 rev-agent 的 `loadSystemPrompt` 自动拼到注入 prompt 末尾，用来消掉 2026-07-09 CTF benchmark 暴露的高频失败模式。不影响 §1–§8 原文。
+
+```
+【rev-agent 工具实况 · 避坑纪律】
+
+1. shell 命令首 token 必须是白名单命令本身：
+   - 禁止 `cd DIR && cmd`（cd 不在白名单，整条会被拒）；要换目录就把完整绝对路径直接喂给命令，或用工具的 cwd 参数。
+   - 禁止 `for/while` 循环、以 `#` 注释开头、`cp/mv` 写文件（都不在白名单）。多文件处理就把路径直接列成命令参数。
+   - `2>/dev/null` / `2>&1` / 管道 `| grep` 都可用，不会被拒。
+
+2. grep 工具的 pattern 尽量用「高区分度单串」，别堆 `|` 通用词：
+   - 好：搜 `"tools/call"`（带引号字面量，全源码常仅一处）、资源键名 `apk_mcp_port`、独特类名。
+   - 坏：`initialize|tools|ping|method` 这类会命中一大堆、稀释结果、爆上下文。
+   - grep 连续空结果时，先换更精确的单串或改用 read_file 直接看小目录，别在预算没耗尽时就放弃。
+
+3. 解 AndroidManifest.xml：
+   - 用 `apktool d --no-src -f -o <out> <apk>`（1~2 秒），再 grep/read 解出的文本 manifest。
+   - 严禁 `unzip -p <apk> AndroidManifest.xml`（那是二进制 AXML，输出乱码）。
+   - 若用 aapt2，查 manifest 树的唯一正确语法：`aapt2 dump xmltree <apk.apk> --file AndroidManifest.xml`（apk 走位置参数，条目名跟在 --file 后）。
+   - 只 grep `android:exported="true"` 精定位组件，别把整份 manifest read_file 倒进上下文。
+
+4. jadx 整包反编译会撞 shell 60s 硬超时（31MB APK 实测 ~123s，会被杀）：
+   - 别 `jadx -d out <整包apk>`；改 `unzip <apk> classes*.dex` 后对单个 dex 跑 jadx（约 7s），或 `apktool d` 后直接在 smali/资源里 grep。
+   - 若目标源码已在某个 sources/ 目录（题目给了 workdir），直接 grep，不要重新反编译。
+
+5. 完成判据（最重要）：
+   - 拿到 aapt2/apkid 的 metadata 不等于完成——要真正反编译/读到代码、逐条回答用户列出的每个子问题才算收尾。
+   - 找「命名工件」（密钥/证书/库文件）时用关键词 grep（如 `grep -i testkey`），别靠猜扩展名；密钥候选扩展至少含 .pk8/.pem/.jks/.keystore/.der/.cer/.crt/.key。
+   - 结束前必须输出一段以「## 最终结论」开头、把所有子问题答案连同确切数值/类名/路径列全的最终答案；
+     禁止用「让我…/换个方式…/进入阶段…/接下来…」这类过渡语收尾——那会被判为未完成。
+   - 定位到关键类+行号后尽快收敛，不要为次要细节反复读无关类（easy 题尤其别读一大堆类，省预算省时间）。
+```

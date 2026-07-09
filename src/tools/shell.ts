@@ -81,7 +81,9 @@ const DENY_PATTERNS = [
   /\bssh\b/,
   /\bscp\b/,
   /\bdd\s+if=/,
-  />\s*\/dev\b/,
+  // 写块设备/真实设备节点才拦；放行 stderr/stdout 重定向到 /dev/null|/dev/stdout|/dev/stderr|/dev/fd/*
+  // （之前 `/>\s*\/dev\b/` 把无害的 `2>/dev/null` 也误杀，见 CTF benchmark D6）
+  />\s*\/dev\/(?!null\b|stdout\b|stderr\b|fd\/)/,
   /\bmkfs\b/,
   /:\(\)\s*\{/, // fork bomb
   /\blaunchctl\b/,
@@ -92,7 +94,9 @@ const DENY_PATTERNS = [
 // 写入类命令前缀：需要审批
 const WRITE_PATTERNS = [
   /\b(?:cp|mv|mkdir|rmdir|rm|touch|ln)\b/,
-  />\s*[^&|]/, // 重定向写文件
+  // 重定向写文件才需审批；放行丢弃输出到 /dev/null|stdout|stderr（无害，LLM 高频用 2>/dev/null）
+  // 与 &fd-dup（2>&1）。见 CTF benchmark D6。
+  />\s*(?!\/dev\/(?:null|stdout|stderr)\b)[^&|>\s]/,
   />>/,
   /\btee\b/,
   /\bapktool\s+b\b/, // 重打包
