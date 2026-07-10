@@ -74,8 +74,15 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
   const root = createRoot(renderer);
 
   const onSubmit = async (text: string) => {
+    // A6：每轮重置计数器，否则跑满 maxSteps 后会话彻底卡死、新消息无响应。
+    agent.resetTurnCounters();
     agent.addUserMessage(text);
-    await agent.run();
+    // A2：agent.run() 抛错不能崩 TUI —— 捕获并 emit error，让用户能继续下一轮。
+    try {
+      await agent.run();
+    } catch (e) {
+      agent.emit('error', e instanceof Error ? e : new Error(String(e)));
+    }
   };
 
   root.render(

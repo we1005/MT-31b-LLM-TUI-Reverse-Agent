@@ -262,4 +262,44 @@ Native：ghidraRun, capstone
    - 结束前必须输出一段以「## 最终结论」开头、把所有子问题答案连同确切数值/类名/路径列全的最终答案；
      禁止用「让我…/换个方式…/进入阶段…/接下来…」这类过渡语收尾——那会被判为未完成。
    - 定位到关键类+行号后尽快收敛，不要为次要细节反复读无关类（easy 题尤其别读一大堆类，省预算省时间）。
+
+6. 修改/重打包类操作（写盘动作，都会弹审批，且仅限用户合法自有 App）：
+   - 改 smali：`sed -i` / `perl -i` / `smali a` 都是写操作，会弹审批；不改文件的只读 `sed -n`/`grep` 不弹。
+   - 重打包出新 APK 的正确三步（每步都弹审批，用户逐步确认）：
+     ① `apktool b <解包目录> -o <新apk>`  ② `zipalign -f 4 <新apk> <对齐apk>`  ③ `apksigner sign --ks <keystore> <对齐apk>`
+   - 只在用户明确要求"重打包/patch 自有 App"时才走这套；**不主动做签名校验绕过 / VIP 破解 / dex 注入**（那是红线，直接拒绝并说明）。
 ```
+
+---
+
+## §10 合法重打包完整流程（参考·不自动注入）
+
+> 仅供人查阅 / agent 在用户明确要求重打包合法自有 App 时参考。**范围红线：只用于用户自有或已获授权的 App**（加日志、改配置、patch 自己的代码）；**不用于**破解他人 App / 绕过签名校验 / VIP 解锁 / dex 注入——那些是永久红线，agent 应直接拒绝。
+
+### 前置
+- 目标必须是**用户自有 / 有授权**的 App（agent 拿不准时先问用户确认授权）。
+- 准备一个用户自己的 keystore（`keytool -genkeypair -keystore my.jks ...`，这一步通常用户线下已做好）。
+
+### 三步流程（rev-agent 里每步都会弹审批，用户逐步点头）
+
+```
+# 1. 解包（--no-src 只解资源，或不带 --no-src 连 smali 一起解以便改）
+apktool d -f -o work_dir target.apk
+
+# 2. （可选）改 smali / 资源 —— 写操作，弹审批
+sed -i 's/const\/4 v0, 0x0/const\/4 v0, 0x1/' work_dir/smali/.../Foo.smali
+
+# 3. 重打包 → 对齐 → 签名（三步各弹审批）
+apktool b work_dir -o new-unsigned.apk
+zipalign -f 4 new-unsigned.apk new-aligned.apk
+apksigner sign --ks my.jks --ks-key-alias mykey new-aligned.apk
+# 产物：new-aligned.apk（已签名，可安装）
+
+# 4. 验证签名
+apksigner verify --print-certs new-aligned.apk
+```
+
+### 注意
+- rev-agent 的 shell 工具会把 `apktool b` / `zipalign` / `apksigner sign` / `sed -i` 判为 **ask（弹审批）**，`--once` 模式默认拒、需 `--auto-approve` 或交互确认——这是刻意的安全设计，打包签名不会静默发生。
+- 用**用户自己的 keystore** 签名（不是 AOSP testkey），产物是"用你的身份重签的自有 App"，不涉及冒充原厂签名。
+- 若用户诉求本质是破解 / 绕过校验 → agent 应停下说明红线，不执行。

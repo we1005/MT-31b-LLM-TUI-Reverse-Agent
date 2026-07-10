@@ -94,6 +94,12 @@ const DENY_PATTERNS = [
 // 写入类命令前缀：需要审批
 const WRITE_PATTERNS = [
   /\b(?:cp|mv|mkdir|rmdir|rm|touch|ln)\b/,
+  // 原地改文件（守只读红线，见完整性审查 B1）：sed -i / perl -i / 任意 -i 原地编辑。
+  // 之前 `sed -i` 未被 WRITE 覆盖 → 判 auto，agent 能不经审批盲改 smali（把 return-void 改
+  // return v0），这违背"只读分析"定位。补上后归 ask，打补丁必须人点头。
+  /\bsed\b[^|]*\s-i\b/,
+  /\bperl\b[^|]*\s-i\b/,
+  /\b(?:baksmali|smali)\s+a(?:ssemble)?\b/, // smali 汇编回 dex = 写
   // 重定向写文件才需审批；放行丢弃输出到 /dev/null|stdout|stderr（无害，LLM 高频用 2>/dev/null）
   // 与 &fd-dup（2>&1）。见 CTF benchmark D6。
   />\s*(?!\/dev\/(?:null|stdout|stderr)\b)[^&|>\s]/,

@@ -25,7 +25,8 @@ bun src/index.tsx --resume --once "继续" --notes /tmp/rev-agent-resume-none.md
 
 # ─── 2. 造一份带 §4 的「上一会话」笔记 ───
 echo "──── 2. 造上一会话笔记（§1 有摘要 / §4 指向 grep 任务）────"
-cat > "$NOTES" <<'EOF'
+# 注意：用绝对路径写死 sources 目录（不用相对路径），避免 agent 对 CWD 的相对路径判断出错。
+cat > "$NOTES" <<EOF
 # LLM 工作笔记
 
 ## 0. 任务元信息
@@ -39,11 +40,11 @@ cat > "$NOTES" <<'EOF'
 
 ## 2. 已完成步骤
 - [x] aapt2 dump badging 完成 → 摘要见 §1
-- [x] 确认反编译源码在 work/mt-jadx/sources
+- [x] 确认反编译源码在 $JADX
 - [ ] 定位 JSON-RPC 路由类
 
 ## 4. 下一步
-N1: 在当前工作目录用 grep 搜高区分度字面量 "tools/call"（全源码仅一处命中）定位 JSON-RPC 路由类
+N1: 用 grep 在 $JADX 里搜高区分度字面量 "tools/call"（全源码仅一处命中）定位 JSON-RPC 路由类
 N2: read_file 打开命中的类，确认它按 method 分派 initialize/ping/tools/list/tools/call
 N3: 给出该路由类的相对路径（形如 l/Cxxxxx.java）
 

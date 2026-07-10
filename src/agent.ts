@@ -44,6 +44,31 @@ export interface AgentOpts {
   maxNudges?: number;
   /** 预算过红线(90%)后还允许几步探索，超过强制收尾（补 budget 不硬停的 D4），默认 3 */
   maxRedSteps?: number;
+  /** 单步 LLM 调用超时（ms），防本地后端 stall 永久 hang（A1）。默认 120_000 */
+  stepTimeoutMs?: number;
+  /** 单步 LLM 输出 token 上限，防单轮爆炸（A1）。默认 8_000 */
+  maxOutputTokens?: number;
+  /** 可重试错误（网络/5xx/超时）的重试次数，指数退避（A2）。默认 2 */
+  maxLlmRetries?: number;
+}
+
+/** 判断 LLM 调用错误是否可重试（网络抖动/限流/5xx/超时/abort），据此决定退避重试还是直接 throw（A2）。 */
+function isRetryableError(e: unknown): boolean {
+  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  const name = e instanceof Error ? e.name.toLowerCase() : '';
+  return (
+    name === 'aborterror' ||
+    name === 'timeouterror' ||
+    /\b(?:429|500|502|503|504)\b/.test(msg) ||
+    /timeout|timed out|econnreset|econnrefused|enotfound|etimedout|socket hang up|fetch failed|network|rate.?limit|overloaded|temporarily/.test(
+      msg,
+    )
+  );
+}
+
+/** sleep 用于指数退避（避免直接 setTimeout 泄漏）。 */
+function delay(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 /**
@@ -108,6 +133,9 @@ export class Agent extends EventEmitter {
       maxRetries: 2,
       maxNudges: 2,
       maxRedSteps: 3,
+      stepTimeoutMs: 120_000,
+      maxOutputTokens: 8_000,
+      maxLlmRetries: 2,
       ...opts,
     } as Required<AgentOpts>;
     this.systemPrompt = opts.systemPrompt;
@@ -127,21 +155,73 @@ export class Agent extends EventEmitter {
     this.messages.push({ role: 'user', content: text });
   }
 
+  /**
+   * 重置「每轮」计数器（A6）。交互模式下每次用户新消息前调用——否则 stepCount/nudgeCount/
+   * redSteps/forcedFinish 跨轮累加，跑满 maxSteps 后会话彻底卡死、新消息无响应。
+   * maxSteps 语义因此是「每轮上限」而非「整会话上限」。budget 是会话级累计，不重置。
+   */
+  resetTurnCounters(): void {
+    this.stepCount = 0;
+    this.nudgeCount = 0;
+    this.redSteps = 0;
+    this.forcedFinish = false;
+  }
+
+  /**
+   * 带超时(A1) + 有限重试(A2)的单步 LLM 调用。
+   * - AbortController + stepTimeoutMs：本地后端 stall 不再永久 hang，超时抛 AbortError。
+   * - maxOutputTokens：防单轮输出爆炸。
+   * - 可重试错误（网络/5xx/超时/abort）指数退避重试 maxLlmRetries 次；不可重试直接抛。
+   */
+  private async callLLM(): Promise<Awaited<ReturnType<typeof generateText>>> {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt <= this.opts.maxLlmRetries; attempt++) {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), this.opts.stepTimeoutMs);
+      try {
+        return await generateText({
+          model: this.opts.model,
+          system: this.systemPrompt,
+          messages: this.messages,
+          tools: this.opts.tools.asAiSdkTools(),
+          abortSignal: ac.signal,
+          maxOutputTokens: this.opts.maxOutputTokens,
+          // 单步：v6 默认就是单步，需要循环就靠外层 while
+        });
+      } catch (e) {
+        lastErr = e;
+        if (attempt < this.opts.maxLlmRetries && isRetryableError(e)) {
+          const backoff = 1000 * 2 ** attempt; // 1s, 2s, 4s...
+          this.emit(
+            'warn',
+            `LLM 调用失败(${e instanceof Error ? e.message.slice(0, 80) : e})，${backoff}ms 后重试 ${attempt + 1}/${this.opts.maxLlmRetries}`,
+          );
+          await delay(backoff);
+          continue;
+        }
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    throw lastErr;
+  }
+
   /** 跑主循环，直到 LLM 不再要 tool 或撞到 maxSteps */
   async run(): Promise<void> {
     while (this.stepCount < this.opts.maxSteps) {
       this.stepCount++;
       try {
-        const result = await generateText({
-          model: this.opts.model,
-          system: this.systemPrompt,
-          messages: this.messages,
-          tools: this.opts.tools.asAiSdkTools(),
-          // 单步：v6 默认就是单步，需要循环就靠这个外层 while
-        });
+        const result = await this.callLLM();
 
-        // 1) 累加 budget
-        const tokens = result.usage?.totalTokens ?? 0;
+        // 1) 累加 budget（A5：后端不报 usage 时用估算兜底，否则硬止损静默失效）
+        let tokens = result.usage?.totalTokens ?? 0;
+        if (tokens <= 0) {
+          // lemonade/本地 OpenAI 兼容端点常不回 usage → 估算本轮 in+out 兜底
+          const inText = this.messages.map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n');
+          tokens = Budget.estimate(inText) + Budget.estimate(result.text ?? '');
+          this.emit('warn', `后端未返回 token usage，用估算兜底 +${tokens}（防预算失控）`);
+        }
         if (tokens > 0) this.opts.budget.add(tokens);
 
         // 2) emit 文本（如果有）
