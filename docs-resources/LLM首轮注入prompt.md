@@ -268,6 +268,11 @@ Native：ghidraRun, capstone
    - 重打包出新 APK 的正确三步（每步都弹审批，用户逐步确认）：
      ① `apktool b <解包目录> -o <新apk>`  ② `zipalign -f 4 <新apk> <对齐apk>`  ③ `apksigner sign --ks <keystore> <对齐apk>`
    - 只在用户明确要求"重打包/patch 自有 App"时才走这套；**不主动做签名校验绕过 / VIP 破解 / dex 注入**（那是红线，直接拒绝并说明）。
+
+7. 不确定某工具的 flag / 子命令语法时，先查本地工具帮助库，别瞎试或凭记忆猜：
+   - `grep -i <关键词> <项目>/docs-resources/tool-help/<tool>.md`（如 `grep -i xmltree .../tool-help/aapt2.md`）。
+   - 库里是 jadx/apktool/aapt2/adb/frida 等的递归 --help（含子命令语法），比自己跑 `<tool> --help`（会被 4KB 截断）全。
+   - 例：忘了 aapt2 查 manifest 树的语法 → grep xmltree → 得到 `aapt2 dump xmltree <apk> --file AndroidManifest.xml`。
 ```
 
 ---

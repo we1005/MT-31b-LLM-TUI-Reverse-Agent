@@ -6,6 +6,7 @@ import { Agent } from '../agent.ts';
 import { Budget } from '../budget.ts';
 import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
+import { preflightSourceTree } from '../preflight.ts';
 import { loadSystemPrompt } from '../prompts.ts';
 import { buildResumeContext } from '../resume.ts';
 import { ToolRegistry } from '../tools/index.ts';
@@ -36,6 +37,16 @@ const red = (s: string) => color(s, 31);
 
 export async function runOnce(opts: RunOnceOpts): Promise<number> {
   if (opts.workdir) process.chdir(opts.workdir);
+
+  // P0 前置校验：源码级任务缺完整源码树 → 秒级 fail-fast + 给配方，别让 agent 撞 123s 超时墙。
+  // 续传模式跳过（笔记里已隐含源码树前提，且 resume 有自己的校验）。见「三提议深度分析」§2。
+  if (!opts.resume) {
+    const pf = preflightSourceTree(opts.task, opts.workdir);
+    if (!pf.ok) {
+      process.stderr.write(yellow(`⚠ 前置校验未通过：\n`) + `${pf.message}\n`);
+      return 2; // 区别于运行错误(1)：2 = 前置条件不满足，需用户补输入
+    }
+  }
 
   // 续传：先构建续传上下文（读笔记 + 校验），失败直接退出，不静默退化成新任务。
   let resumeMessage: string | undefined;
