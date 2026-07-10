@@ -103,8 +103,25 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
     },
   });
 
-  agent.on('assistant', (text) => {
-    process.stdout.write(text);
+  // 流式：assistant 正文增量直接进 stdout（评分脚本读 stdout，增量拼起来=完整答案）。
+  agent.on('assistantDelta', (delta) => {
+    process.stdout.write(delta);
+  });
+  // 流式：思考链增量进 stderr（暗灰，不污染被评分的 stdout），消灭 Qwen 推理期死屏。
+  let reasoningActive = false;
+  agent.on('reasoningDelta', (delta) => {
+    if (!reasoningActive) {
+      process.stderr.write(dim('\n💭 '));
+      reasoningActive = true;
+    }
+    process.stderr.write(dim(delta));
+  });
+  // 一轮结束的完整 assistant 文本：只补一个换行收尾（正文已由 assistantDelta 流式写过）。
+  agent.on('assistant', () => {
+    if (reasoningActive) {
+      process.stderr.write('\n');
+      reasoningActive = false;
+    }
     process.stdout.write('\n');
   });
   agent.on('toolCall', (call) => {

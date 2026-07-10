@@ -39,6 +39,8 @@ interface State {
 
 type Action =
   | { type: 'msg'; m: UIMessage }
+  | { type: 'delta'; role: 'assistant' | 'reasoning'; id: string; text: string }
+  | { type: 'endStream' }
   | { type: 'budget'; used: number; max: number }
   | { type: 'pending'; p: PendingApproval | null }
   | { type: 'busy'; v: boolean }
@@ -57,6 +59,18 @@ function reducer(s: State, a: Action): State {
   switch (a.type) {
     case 'msg':
       return { ...s, messages: [...s.messages, a.m].slice(-200) }; // 硬截 200 条，防积压
+    case 'delta': {
+      // 流式增量：若末条消息就是这个 id 就追加，否则新建一条（消灭死屏）
+      const last = s.messages[s.messages.length - 1];
+      if (last && last.id === a.id) {
+        const updated = { ...last, text: last.text + a.text };
+        return { ...s, messages: [...s.messages.slice(0, -1), updated] };
+      }
+      const role = a.role === 'reasoning' ? 'reasoning' : 'assistant';
+      return { ...s, messages: [...s.messages, { id: a.id, role, text: a.text }].slice(-200) };
+    }
+    case 'endStream':
+      return s; // 流结束的收尾钩子（目前仅占位，delta 已即时上屏）
     case 'budget':
       return { ...s, used: a.used, max: a.max };
     case 'pending':
@@ -101,10 +115,29 @@ export function App({ agent, notesPath, onSubmit, approvalChannel }: AppProps) {
     return unsub;
   }, [approvalChannel]);
 
+  // 流式增量的当前消息 id（每段 assistant/reasoning 连续增量拼进同一条）
+  const streamIds = useRef<{ assistant: string | null; reasoning: string | null }>({
+    assistant: null,
+    reasoning: null,
+  });
+
   // 绑定 agent 事件
   useEffect(() => {
-    const onAssistant = (text: string) => {
-      dispatch({ type: 'msg', m: { id: nanoid(), role: 'assistant', text } });
+    const onAssistantDelta = (delta: string) => {
+      // reasoning 段结束→正文开始：重置 reasoning 流，开新 assistant 流
+      streamIds.current.reasoning = null;
+      if (!streamIds.current.assistant) streamIds.current.assistant = `a-${nanoid()}`;
+      dispatch({ type: 'delta', role: 'assistant', id: streamIds.current.assistant, text: delta });
+    };
+    const onReasoningDelta = (delta: string) => {
+      if (!streamIds.current.reasoning) streamIds.current.reasoning = `r-${nanoid()}`;
+      dispatch({ type: 'delta', role: 'reasoning', id: streamIds.current.reasoning, text: delta });
+    };
+    const onAssistant = (_text: string) => {
+      // 一轮结束：正文已由 assistantDelta 流式呈现，这里只重置流 id 供下一轮
+      streamIds.current.assistant = null;
+      streamIds.current.reasoning = null;
+      dispatch({ type: 'endStream' });
     };
     const onToolCall = (call: { id: string; name: string; args: unknown }) => {
       const argStr = JSON.stringify(call.args).slice(0, 120);
@@ -137,6 +170,8 @@ export function App({ agent, notesPath, onSubmit, approvalChannel }: AppProps) {
       dispatch({ type: 'busy', v: false });
     };
 
+    agent.on('assistantDelta', onAssistantDelta);
+    agent.on('reasoningDelta', onReasoningDelta);
     agent.on('assistant', onAssistant);
     agent.on('toolCall', onToolCall);
     agent.on('toolResult', onToolResult);
@@ -146,6 +181,8 @@ export function App({ agent, notesPath, onSubmit, approvalChannel }: AppProps) {
     agent.on('error', onError);
     agent.on('done', onDone);
     return () => {
+      agent.off('assistantDelta', onAssistantDelta);
+      agent.off('reasoningDelta', onReasoningDelta);
       agent.off('assistant', onAssistant);
       agent.off('toolCall', onToolCall);
       agent.off('toolResult', onToolResult);

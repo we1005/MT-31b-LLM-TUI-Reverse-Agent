@@ -4,7 +4,7 @@
  * 单步循环：每次只跑一轮 LLM → 拿到 tool_calls → 审批/执行 → 续轮，直到 LLM 不再要工具。
  * 不放 execute 在 tool 定义里，而是手动 dispatch，强制走 classify → approve → run 流程。
  */
-import { generateText, type LanguageModel, type ModelMessage } from 'ai';
+import { type LanguageModel, type ModelMessage, streamText } from 'ai';
 import { EventEmitter } from 'node:events';
 import { Budget } from './budget.ts';
 import type { Approval, ToolRegistry } from './tools/index.ts';
@@ -18,6 +18,10 @@ export interface ToolCallPending {
 
 export interface AgentEvents {
   assistant: (text: string) => void;
+  /** 流式：assistant 正文增量（消灭死屏，Q1）。UI 可实时拼接上屏。 */
+  assistantDelta: (delta: string) => void;
+  /** 流式：思考链增量（Qwen reasoning_content 救回后的 reasoning-delta）。UI 显暗灰折叠流。 */
+  reasoningDelta: (delta: string) => void;
   toolCall: (call: ToolCallPending) => void;
   toolResult: (id: string, name: string, result: unknown) => void;
   toolDenied: (id: string, name: string, reason: string) => void;
@@ -28,6 +32,18 @@ export interface AgentEvents {
 }
 
 export type ApprovalDecider = (call: ToolCallPending) => Promise<boolean>;
+
+/** callLLM 归一化返回：字段与原 generateText 结果兼容，外层 while 无需改。 */
+interface NormalizedResult {
+  text: string;
+  // biome-ignore lint/suspicious/noExplicitAny: SDK toolCalls 泛型异构
+  toolCalls: any[];
+  finishReason: string;
+  // biome-ignore lint/suspicious/noExplicitAny: SDK usage 类型
+  usage: any;
+  // biome-ignore lint/suspicious/noExplicitAny: SDK response.messages 形态
+  response: { messages?: any[] } | undefined;
+}
 
 export interface AgentOpts {
   model: LanguageModel;
@@ -168,26 +184,67 @@ export class Agent extends EventEmitter {
   }
 
   /**
-   * 带超时(A1) + 有限重试(A2)的单步 LLM 调用。
-   * - AbortController + stepTimeoutMs：本地后端 stall 不再永久 hang，超时抛 AbortError。
+   * 带超时(A1) + 有限重试(A2) + **流式(Q1)** 的单步 LLM 调用。
+   * - streamText + fullStream：text-delta / reasoning-delta 实时 emit，消灭 Qwen 推理期死屏。
+   * - AbortController + stepTimeoutMs：本地后端 stall 不再永久 hang；流开始后每收到一个 part 续期
+   *   （token 在流就说明后端活着，超时只针对"卡住不吐"）。
    * - maxOutputTokens：防单轮输出爆炸。
    * - 可重试错误（网络/5xx/超时/abort）指数退避重试 maxLlmRetries 次；不可重试直接抛。
+   * 返回归一化结果，字段与原 generateText 兼容，外层 while 逻辑不变。
    */
-  private async callLLM(): Promise<Awaited<ReturnType<typeof generateText>>> {
+  private async callLLM(): Promise<NormalizedResult> {
     let lastErr: unknown;
     for (let attempt = 0; attempt <= this.opts.maxLlmRetries; attempt++) {
       const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), this.opts.stepTimeoutMs);
+      // 空闲超时：每来一个 part 就重置计时；只有"卡住不吐 part"超过 stepTimeoutMs 才 abort。
+      let timer = setTimeout(() => ac.abort(), this.opts.stepTimeoutMs);
+      const bump = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => ac.abort(), this.opts.stepTimeoutMs);
+      };
       try {
-        return await generateText({
+        const result = streamText({
           model: this.opts.model,
           system: this.systemPrompt,
           messages: this.messages,
           tools: this.opts.tools.asAiSdkTools(),
           abortSignal: ac.signal,
           maxOutputTokens: this.opts.maxOutputTokens,
-          // 单步：v6 默认就是单步，需要循环就靠外层 while
         });
+
+        let text = '';
+        for await (const part of result.fullStream) {
+          bump();
+          switch (part.type) {
+            case 'text-delta': {
+              // v6 的 text-delta 用 .text 字段
+              const d = (part as { text?: string }).text ?? '';
+              if (d) {
+                text += d;
+                this.emit('assistantDelta', d);
+              }
+              break;
+            }
+            case 'reasoning-delta': {
+              const d = (part as { text?: string }).text ?? '';
+              if (d) this.emit('reasoningDelta', d);
+              break;
+            }
+            case 'error':
+              throw (part as { error?: unknown }).error ?? new Error('stream error');
+            default:
+              break; // tool-call/tool-result/start/finish 等由下面 await 汇总
+          }
+        }
+
+        // 流跑完，汇总最终结构（await 已解析的 promise，不再有网络等待）
+        return {
+          text,
+          toolCalls: await result.toolCalls,
+          finishReason: await result.finishReason,
+          usage: await result.usage,
+          response: await result.response,
+        };
       } catch (e) {
         lastErr = e;
         if (attempt < this.opts.maxLlmRetries && isRetryableError(e)) {

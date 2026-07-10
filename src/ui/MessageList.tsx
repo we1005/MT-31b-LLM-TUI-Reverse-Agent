@@ -3,7 +3,15 @@
  * 简化版：scrollbox + 自动追加到底（agent 主流程顺序追加，rarely 跳跃）。
  */
 
-export type Role = 'user' | 'assistant' | 'tool-call' | 'tool-result' | 'tool-denied' | 'system' | 'error';
+export type Role =
+  | 'user'
+  | 'assistant'
+  | 'reasoning'
+  | 'tool-call'
+  | 'tool-result'
+  | 'tool-denied'
+  | 'system'
+  | 'error';
 
 export interface UIMessage {
   id: string;
@@ -21,6 +29,7 @@ export interface MessageListProps {
 const ROLE_STYLE: Record<Role, { fg: string; prefix: string }> = {
   user: { fg: 'cyan', prefix: '› ' },
   assistant: { fg: 'white', prefix: '' },
+  reasoning: { fg: '#6b7280', prefix: '💭 ' }, // 暗灰思考流（Q1：救回 Qwen reasoning_content）
   'tool-call': { fg: 'magenta', prefix: '→ ' },
   'tool-result': { fg: 'gray', prefix: '  ← ' },
   'tool-denied': { fg: 'red', prefix: '  ✗ ' },
