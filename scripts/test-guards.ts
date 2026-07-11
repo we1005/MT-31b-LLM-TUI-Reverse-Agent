@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import { Agent } from '../src/agent.ts';
 import { Budget } from '../src/budget.ts';
+import { Ledger } from '../src/memory/ledger.ts';
 
 // 极简 mock ToolRegistry（Defect F 场景模型不发 tool call，run/classify 不会被调）
 const mockTools: any = {
@@ -244,6 +245,20 @@ ok('SWA前缀: 台账只出现在 messages 末尾(尾消息含台账标记)', se
 // (b) 台账绝不写回持久 messages（run 结束后 agent.messages 不含台账标记）
 const persisted = JSON.stringify((agent5 as any).messages ?? []);
 ok('SWA前缀: 台账不写回持久 messages(ephemeral)', !persisted.includes(LEDGER_MARK));
+
+// ---- 测硬约束 e：dedup 守卫 vs 驱逐后重读 死锁修复（纯 Ledger 单测，离线）----
+const led = new Ledger();
+led.observeToolResult('read_file', { path: '/a/X.java', start: 1, lines: 50 }, { range: { start: 1, end: 50 } });
+ok('死锁e: 已读范围命中 dedup(hasRead=true)', led.hasRead('/a/X.java', 1, 50) === true);
+led.markEvicted('/a/X.java');
+ok('死锁e: 驱逐后允许重读(hasRead=false，解死锁)', led.hasRead('/a/X.java', 1, 50) === false);
+led.observeToolResult('read_file', { path: '/a/X.java', start: 1, lines: 50 }, { range: { start: 1, end: 50 } });
+ok('死锁e: 重读后恢复 dedup(hasRead=true)', led.hasRead('/a/X.java', 1, 50) === true);
+const led2 = new Ledger();
+led2.observeToolResult('read_file', { path: '/a/Y.java', start: 1, lines: 50 }, { range: { start: 1, end: 50 } });
+led2.observeToolResult('read_file', { path: '/a/Z.java', start: 1, lines: 50 }, { range: { start: 1, end: 50 } });
+led2.markEvicted('/a/Y.java');
+ok('死锁e: 只驱逐目标path，其它path不受影响', led2.hasRead('/a/Y.java', 1, 50) === false && led2.hasRead('/a/Z.java', 1, 50) === true);
 
 console.log(`\n结果: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

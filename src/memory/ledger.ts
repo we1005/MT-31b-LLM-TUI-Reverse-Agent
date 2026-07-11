@@ -24,7 +24,9 @@ export interface Hop {
 
 export interface ReadEntry {
   path: string;
-  ranges: Array<{ start: number; end: number }>;
+  // evicted=true 表示该范围的内容已被 compactHistory 折叠出上下文（模型已看不到原文）。
+  // 用途：解「dedup 守卫 vs 驱逐后需重读」死锁——被驱逐的范围允许重读(hasRead 视其为未读)。
+  ranges: Array<{ start: number; end: number; evicted?: boolean }>;
 }
 
 export interface GrepEntry {
@@ -143,11 +145,25 @@ export class Ledger {
     };
   }
 
-  /** read_file 去重守卫：该 path 的该行范围是否已读过（覆盖即算）。 */
+  /**
+   * read_file 去重守卫：该 path 的该行范围是否**仍在上下文里**已读过（覆盖即算）。
+   * 关键(硬约束 e，解死锁)：只认**未被驱逐(evicted)**的覆盖范围——内容已被折叠出上下文的范围
+   * 视为「未读」，允许模型重读，否则会出现「stub 让你重读→dedup 又拦住→拿不到已驱逐类体→迷路」的死锁。
+   */
   hasRead(path: string, start: number, end: number): boolean {
     const e = this.reads.find((r) => r.path === path);
     if (!e) return false;
-    return e.ranges.some((r) => r.start <= start && r.end >= end);
+    return e.ranges.some((r) => r.start <= start && r.end >= end && !r.evicted);
+  }
+
+  /**
+   * 标记某 path 的已读范围为「已驱逐」(内容被 compactHistory 折叠出上下文)。
+   * path 级(而非按精确区间)——避免部分重叠区间的语义歧义;代价仅是偶尔多允许一次重读(无害),
+   * 而漏标会导致死锁(有害),故取保守的 path 级。重读该 path 时 addRead 会重新加入 live 范围恢复去重。
+   */
+  markEvicted(path: string): void {
+    const e = this.reads.find((r) => r.path === path);
+    if (e) for (const r of e.ranges) r.evicted = true;
   }
 
   /** grep 去重守卫：同 pattern+path 是否已搜过。 */

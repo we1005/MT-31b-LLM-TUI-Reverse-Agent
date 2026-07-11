@@ -456,6 +456,8 @@ export class Agent extends EventEmitter {
             const start = v.range?.start ?? 1;
             const end = v.range?.end ?? '';
             reread = `重看用: read_file(path="${v.path}", start=${start}${end ? `, lines=${Math.max(1, (end - start + 1))}` : ''})`;
+            // 硬约束 e：该 read 内容折出上下文 → 标记 ledger 驱逐，解开 dedup 守卫死锁(允许重读)。
+            this.ledger.markEvicted(v.path);
           } else if (name === 'grep' && v.path) {
             reread = `重跑用: grep(pattern="${v.pattern ?? '<原pattern>'}", path="${v.path}")`;
           }
