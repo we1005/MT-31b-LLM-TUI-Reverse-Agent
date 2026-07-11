@@ -144,7 +144,16 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
   agent.on('error', (e) => process.stderr.write(red(`✗ ${e.message}\n`)));
 
   // 续传时首条消息是注入了笔记全文的续传上下文；否则是用户原始任务。
-  agent.addUserMessage(resumeMessage ?? opts.task);
+  // 关键修复：chdir 只让工具的相对路径生效，但 LLM 不知道自己在哪个目录 → 会幻觉路径满世界找。
+  // 非续传时把「当前工作目录」显式前缀进任务，让 agent 直接从这里开始，不要去猜/搜。
+  let firstMessage = resumeMessage ?? opts.task;
+  if (!resumeMessage) {
+    const cwd = process.cwd();
+    firstMessage =
+      `【你的当前工作目录（所有相对路径基于此，反编译源码就在这里，直接用，不要去别处搜索）】\n${cwd}\n\n` +
+      `【任务】\n${opts.task}`;
+  }
+  agent.addUserMessage(firstMessage);
 
   try {
     await agent.run();
