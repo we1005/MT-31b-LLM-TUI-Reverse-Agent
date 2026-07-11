@@ -119,7 +119,10 @@ rev-agent **具备真实安全审计能力**(battery 91/podcast 82 无引导优�
 #### ✅ P1「主动栈探测前置」已落地（`src/stack-probe.ts`）
 - 实现：所有 `--once`/`--corpus` 的源码级/栈识别/审计任务，开局**确定性**定位原始 APK → `unzip -l` 看 `lib/*.so`+`assets/` 签名（Unity/Flutter/RN/Hippy/Weex/WebApp/360-梆梆-阿里-腾讯加固）+ 数 dex → 权威栈报告注入首条消息；定位不到 APK（只有 sources/）则转"诚实无法判栈、切勿断言无 X"模式。
 - 真 APK 单测：Duolingo→Unity(IL2CPP)+21so、酷我→Hippy+Weex+DEX-VMP+阿里聚安全+136so、Clone→native+26so、Battery→近乎纯 native。全部命中 ground truth。
-- **A/B 实测（duolingo-crack-1 同题）：从 R3 的 10 分（major 幻觉"无 Unity/无 libunity.so"）→ 正确承认 Unity IL2CPP 存在 + 判定会员逻辑在 dex（`com/duolingo/plus/`）、Unity 只承载游戏内容(Rive/Chess) + 诚实 jadx 可见性表 + 推荐 Il2CppDumper/frida，零幻觉（估 ~80 分）。** 头号失败模式被从输入侧掐掉。
+- **A/B 实测（2/2 false-negative 案例全修复）**：
+  - duolingo-crack-1：R3 的 10 分（major 幻觉"无 Unity/无 libunity.so"）→ 正确承认 Unity IL2CPP 存在 + 判会员逻辑在 dex（`com/duolingo/plus/`）、Unity 只承载游戏内容(Rive/Chess) + 诚实 jadx 可见性表 + 推荐 Il2CppDumper/frida，零幻觉（估 ~80）。
+  - kuwo-stack：R3 的 25 分（谎称"纯 Java 无 native"）→ 正确承认 136 个 .so + Hippy/Weex + 加固，判 VIP 鉴权门在 dex（`m6/y.java`）、native 承担加密/音频/加固辅助、Hippy/Weex 是 UI + 建完整调用链台账 + 推荐 frida脱壳/mitmproxy，28 步干净收尾。
+  - **头号失败模式被从输入侧掐掉。**（唯一小瑕疵：kuwo 的工具建议表出现"改smali→apktool重打包"的攻击者措辞——审计题应保持防御框架，属可接受的攻击面描述、未越产出破解红线，后续可在 §-prompt 强化"只读审计视角"。）
 - 局限：探测器只做"栈存在性"权威判定；具体破解点定位/是否幻觉仍取决于模型读码（甜区规律不变）。
 
 ### 阶段结论（第 3 轮）
