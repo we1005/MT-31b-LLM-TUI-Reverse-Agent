@@ -177,5 +177,73 @@ ok('--once卡住: 有困境报告 stuckReport', typeof (agent4 as any).stuckRepo
 ok('--once卡住: done reason = stuck_halt', doneReason4 === 'stuck_halt');
 ok('--once卡住: 触发 stuck 事件', warns4.some((w) => w === 'STUCK_EVENT'));
 
+// ---- 测 SWA 稳定前缀铁律（硬约束 a+b 的离线守卫，不依赖在线后端）----
+// 捕获每步传给模型的 system + 尾消息，断言：
+//   (a) system 在所有步逐字节相同（静态前缀，前缀缓存可复用的前提）
+//   (b) 台账标记只出现在 messages 末尾 ephemeral，绝不在 system，也绝不写回持久 messages
+const LEDGER_MARK = '【系统进度台账';
+const STATIC_SYS = 'STATIC-PREFIX-SYSTEM-PROMPT-逐字节不变';
+const seenSystems: string[] = [];
+const seenTails: string[] = [];
+let capStep = 0;
+function capturingGrepModel(): any {
+  return {
+    specificationVersion: 'v3',
+    provider: 'mock',
+    modelId: 'mock-capture',
+    supportedUrls: {},
+    async doStream(options: any) {
+      capStep++;
+      // AI SDK 把 system 折进 prompt 数组(role:'system')；尾消息=最后一条
+      const prompt: any[] = options?.prompt ?? [];
+      const sysMsg = prompt.find((m) => m.role === 'system');
+      const sysText = typeof sysMsg?.content === 'string' ? sysMsg.content : JSON.stringify(sysMsg?.content ?? '');
+      const last = prompt[prompt.length - 1];
+      seenSystems.push(sysText);
+      seenTails.push(JSON.stringify(last?.content ?? ''));
+      const parts = [
+        { type: 'stream-start', warnings: [] },
+        { type: 'text-start', id: 't' },
+        { type: 'text-delta', id: 't', delta: `grep 第 ${capStep} 次。` },
+        { type: 'text-end', id: 't' },
+        { type: 'tool-input-start', id: `cap${capStep}`, toolName: 'grep' },
+        { type: 'tool-input-delta', id: `cap${capStep}`, delta: `{"pattern":"pat${capStep}","path":"/x"}` },
+        { type: 'tool-input-end', id: `cap${capStep}` },
+        { type: 'tool-call', toolCallId: `cap${capStep}`, toolName: 'grep', input: `{"pattern":"pat${capStep}","path":"/x"}` },
+        { type: 'finish', finishReason: 'tool-calls', usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 } },
+      ];
+      return {
+        stream: new ReadableStream({
+          start(c) {
+            for (const p of parts) c.enqueue(p);
+            c.close();
+          },
+        }),
+      };
+    },
+  };
+}
+const agent5 = new Agent({
+  model: capturingGrepModel(),
+  tools: grepTools,
+  budget: new Budget(80000),
+  systemPrompt: STATIC_SYS,
+  approve: async () => true,
+  maxSteps: 25,
+});
+agent5.addUserMessage('追一条链路验证前缀不变');
+await agent5.run();
+
+// (a) system 逐字节不变
+const uniqSys = [...new Set(seenSystems)];
+ok(`SWA前缀: system 在所有步逐字节相同(采样${seenSystems.length}步, 唯一值${uniqSys.length})`, seenSystems.length >= 3 && uniqSys.length === 1);
+// system 恰好=静态 systemPrompt，且从不含台账标记
+ok('SWA前缀: system 恒等于静态 systemPrompt，不含台账', uniqSys.length === 1 && uniqSys[0] === STATIC_SYS && !uniqSys[0].includes(LEDGER_MARK));
+// (b) 台账只在尾消息出现（一旦 ledger 非空）；至少有一步的尾消息带台账
+ok('SWA前缀: 台账只出现在 messages 末尾(尾消息含台账标记)', seenTails.some((t) => t.includes(LEDGER_MARK)));
+// (b) 台账绝不写回持久 messages（run 结束后 agent.messages 不含台账标记）
+const persisted = JSON.stringify((agent5 as any).messages ?? []);
+ok('SWA前缀: 台账不写回持久 messages(ephemeral)', !persisted.includes(LEDGER_MARK));
+
 console.log(`\n结果: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
