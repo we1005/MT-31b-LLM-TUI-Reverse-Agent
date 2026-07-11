@@ -309,7 +309,8 @@ export class Agent extends EventEmitter {
         // 根因：SWA 模型下 llama.cpp 只复用「逐字节相同的最长公共前缀」的 KV；台账原本拼在 system(prompt 最头部)
         //   且每步都变 → 前缀从第一个 token 就断 → 每步 forcing full re-processing（上下文越长越卡，即"越聊越卡"）。
         // 移到末尾后：[静态 system + 只追加的真实历史] 是稳定前缀，每步只重算「本轮新增 + 台账」这一小截。
-        const led = this.ledger.render();
+        // 消融开关 REV_AGENT_NO_LEDGER_RENDER=1：不把台账渲染给模型看(内部仍追踪供守卫用)——测「让模型看到台账」本身的价值。
+        const led = process.env['REV_AGENT_NO_LEDGER_RENDER'] ? '' : this.ledger.render();
         const ledgerBlock = led ? `【系统进度台账·非用户输入，直接用，别重新推导已确认的跳】\n${led}` : '';
         // 消融开关(REV_AGENT_LEDGER_IN_SYSTEM=1)：把台账放回 system 头部(旧/坏做法)——用于 A/B 验证
         // 「台账拼 messages 末尾」这个设计是否真的有用(测前缀缓存命中率差异)。默认关=拼末尾(SWA 铁律)。
