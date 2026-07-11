@@ -49,7 +49,7 @@ function ok(name: string, cond: boolean) {
   }
 }
 
-// ---- 测 Defect F：0 工具就下结论 → "先读码核实" 提醒必触发 ----
+// ---- 测 Defect F：0 工具就下结论 → "先读方法体核实" 提醒必触发 ----
 const warns: string[] = [];
 const agent = new Agent({
   model: scriptedNoToolModel(),
@@ -63,8 +63,8 @@ agent.on('warn', (m: string) => warns.push(m));
 agent.addUserMessage('在 /some/workdir 里逆向有道翻译的签名算法');
 await agent.run();
 
-ok('Defect F: 触发"先读码核实"提醒(0工具下结论被拦)', warns.some((w) => w.includes('先读码核实')));
-ok('Defect F: 提醒只触发一次(noInvestigateNudged 一次性)', warns.filter((w) => w.includes('先读码核实')).length === 1);
+ok('Defect F: 触发"先读方法体核实"提醒(0工具下结论被拦)', warns.some((w) => w.includes('先读方法体核实')));
+ok('Defect F: 提醒只触发一次(noInvestigateNudged 一次性)', warns.filter((w) => w.includes('先读方法体核实')).length === 1);
 ok('Defect F: 最终仍能收尾(有界,不死循环)', warns.some((w) => w.includes('SCORECARD')));
 
 // ---- 测 R7 grep 空转 + R6 forcedFinish 强制终止：模型每步只发不同 grep、从不 read ----

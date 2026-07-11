@@ -409,7 +409,9 @@ export class Agent extends EventEmitter {
       `[SCORECARD] steps=${this.stepCount} ledger(hops=${ms.hops} ✓${ms.corroborated} reads=${ms.reads} greps=${ms.greps})` +
         ` cache_avg=${cacheAvg}% cache_min=${cacheMin}% max_ctx=${this.maxCtx} folded=${this.foldedIds.size} dedup=${this.dedupHits}` +
         ` nudges=${this.nudgesTotal} explore_nudges=${this.explorationNudges} stall=${this.stallTriggered ? 1 : 0}` +
-        ` forced=${this.forcedFinish ? 1 : 0} wrap=${this.wrapFinished ? 1 : 0} conclusion=${conclusion ? 1 : 0}`,
+        ` forced=${this.forcedFinish ? 1 : 0} escalations=${this.escalationCount} wrap=${this.wrapFinished ? 1 : 0} conclusion=${conclusion ? 1 : 0}` +
+        // 介入指标：agent 原地打转/需干预的总次数(越少越好=越顺、越少需强模型/用户介入)。
+        ` interventions=${this.nudgesTotal + this.explorationNudges + (this.stallTriggered ? 1 : 0) + (this.forcedFinish ? 1 : 0) + this.escalationCount}`,
     );
   }
 
@@ -593,6 +595,7 @@ export class Agent extends EventEmitter {
               `你已连续 ${this.stallSteps} 步没有任何新进展（在重复无效操作，如反复读不存在/读过的文件）。停止一切工具调用，` +
               '立即用已确认的证据输出以「## 最终结论」开头的答案；把已追出的每一跳写成 `A.方法 → B.方法 | 证据 类:行` 链路图，' +
               '未证实的环节标"待确认"给最佳推断。不要再调用任何工具。' +
+              '【反幻觉铁律】只基于你实际 read_file 读到并能引用 file:line 的内容下结论；没读到/没定位到的一律明说"未能证实"，严禁编造代码里不存在的机制/字节码/类名——找不到远好于瞎编。' +
               (this.ledger.hopCount() ? `\n\n已确认链路草稿：\n${this.ledger.renderChainGraph()}` : ''),
           });
           continue;
@@ -624,6 +627,7 @@ export class Agent extends EventEmitter {
             content:
               '你连续多步在反复 grep，却没有读进任何新代码、也没连出新的一跳——很可能在搜一个定位不到的目标。' +
               '停止搜索，立即用已确认证据输出以「## 最终结论」开头的答案（把已追出的跳写成链路图，未证实的标"待确认"给最佳推断）。不要再调用工具。' +
+              '【反幻觉铁律】只基于你实际 read_file 读到并能引用 file:line 的内容下结论；没读到/没定位到的明说"未能证实"，严禁编造代码里不存在的机制/字节码/类名——找不到远好于瞎编。' +
               (this.ledger.hopCount() ? `\n\n已确认链路草稿：\n${this.ledger.renderChainGraph()}` : ''),
           });
           continue;
@@ -753,17 +757,19 @@ export class Agent extends EventEmitter {
           const text = result.text ?? '';
           const finish = result.finishReason ?? 'unknown';
           const finishIsClean = finish === 'stop' || finish === 'end_turn';
-          // Defect F（R10 mtmod-r10-01 实测）：逆向 agent 一次工具都没调、没读一行代码就下结论
-          //   （凭"有道翻译=MD5+AES"通用先验蒙 4/10、未核实）→ 幻觉风险。要求至少调查一次再收尾（一次性）。
-          if (this.toolCallTotal === 0 && !this.noInvestigateNudged && !this.forcedFinish) {
+          // Defect F+G（R10 mtmod-r10-01：0 工具就下结论；crack-v1 device：只 grep 从不 read_file→reads=0→凭 grep
+          //   回显+先验幻觉编造"isProbablePrime 熵值校验"荒谬机制）。核心：grep 只定位字符串位置、看不到方法逻辑；
+          //   逆向/审计必须 read_file 读方法体核实。故 0 工具 或 从未读过任何文件(reads===0) → 一次性 nudge 先读码。
+          if ((this.toolCallTotal === 0 || this.ledger.stats().reads === 0) && !this.noInvestigateNudged && !this.forcedFinish) {
             this.noInvestigateNudged = true;
             this.nudgesTotal++;
-            this.emit('warn', '未调用任何工具就下结论(未核实源码)，注入一次"先读码核实"提醒');
+            this.emit('warn', '未 read_file 读过任何代码正文就下结论(grep 只定位字符串、看不到逻辑)，注入一次"先读方法体核实"提醒');
             this.messages.push({
               role: 'user',
               content:
-                '你还没有用 grep/read_file 读过任何一行实际代码就给结论了——这是逆向任务，答案必须基于源码核实、不能凭先验猜测。' +
-                '请先 grep 起点锚点定位关键类、再 read_file 打开确认，然后才输出以「## 最终结论」开头的答案。',
+                '你还没有用 read_file 打开读过任何一处代码的**方法体正文**就下结论了——grep 只能告诉你字符串在哪一行、看不到方法内部逻辑。' +
+                '这是逆向/安全审计任务，对"某方法做了什么/被怎么篡改"的判断必须基于 read_file 读到的真实实现，**绝不能凭 grep 回显或通用先验猜测编造机制**。' +
+                '请先 read_file 打开关键方法所在类、读其方法体确认，再输出以「## 最终结论」开头的答案。',
             });
             continue;
           }
@@ -816,15 +822,24 @@ export class Agent extends EventEmitter {
           const hasConclusion = /##\s*最终结论|最终(答案|结论)/.test(
             this.messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join(''),
           );
-          if (this.ledger.hopCount() >= 1 && !hasConclusion && !this.wrapFinished) {
+          // Defect H（crack-audit guided 实测）：审计/理解类任务 hops=0（非"跳N"链路格式），读了代码却
+          //   在找到关键点后"宣告下一步就 done / 只写计划"没输出完整报告 → 原 #6 要 hops>=1 兜不住。
+          //   扩成 hops>=1 || reads>0：只要真读过代码却没写结论，就逼输出完整报告(含题目要求的各部分)。
+          const readN = this.ledger.stats().reads;
+          if ((this.ledger.hopCount() >= 1 || readN > 0) && !hasConclusion && !this.wrapFinished) {
             this.wrapFinished = true;
-            this.emit('warn', `已累计 ${this.ledger.hopCount()} 跳台账但未写最终结论，注入一次收尾拼图`);
+            this.emit('warn', `已读 ${readN} 类/${this.ledger.hopCount()} 跳但未写最终结论，注入一次强制收尾`);
+            const draft = this.ledger.hopCount() ? `\n\n已确认链路草稿：\n${this.ledger.renderChainGraph()}` : '';
             this.messages.push({
               role: 'user',
               content:
-                '停止一切工具调用。你已在进度台账确认了多跳链路，现在**必须**输出以「## 最终结论」开头的完整链路图：' +
-                '每跳写成 `A.方法 → B.方法 | 证据 类:行`，未证实的环节标"待确认"给最佳推断。不要再用"继续追…/让我…"等过渡语。' +
-                `\n\n已确认链路草稿（直接整理成最终图）：\n${this.ledger.renderChainGraph()}`,
+                '停止一切工具调用。你已经读过关键代码，现在**必须**立即输出以「## 最终结论」开头的**完整**答案，' +
+                '把用户问题要求的**每一部分都答全**（如追链路题：逐跳 `A.方法 → B.方法 | 证据 类:行` 的链路图；' +
+                '如安全审计题：破解点(类.方法+行号)、破解技术、调用链、防御修复方案，四部分缺一不可）。' +
+                '【反幻觉铁律】只写你**实际 read_file 读到并能引用 file:line 证实**的东西；凡没亲自读到证实的（方法体、字节码、类名、机制），' +
+                '一律标注"未能证实/待确认"并说明为何没读到，**绝对禁止编造代码里不存在的机制/字节码指令/类名**——审计里"我没能定位到"远好于自信地编一个假答案。' +
+                '不要再用"继续/让我/接下来我要"等过渡语，也不要只写计划——直接给完整结论。' +
+                draft,
             });
             continue;
           }
