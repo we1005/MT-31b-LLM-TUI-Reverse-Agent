@@ -24,6 +24,7 @@ const program = new Command()
   .option('--once <task>', '非交互模式：单任务跑到完成，结果走 stdout')
   .option('--auto-approve', '所有工具自动放行（仅 --once 推荐）')
   .option('--workdir <path>', 'agent 默认 cwd（影响 grep / read_file 的相对路径）')
+  .option('--corpus <dir>', '案卷续分析模式：指向强 agent 前置分析产物目录（MD 结论 / Frida trace / pcap / dump / 源码树），接手它续分析而非从裸 APK 逆向')
   .option('--budget <tokens>', 'token 预算上限', String(80_000))
   .option('--notes <path>', '工作笔记路径', '/tmp/work-notes.md')
   .option('--mcp-server', '进入 MCP server 模式（stdio transport，给 Claude Code/Cursor 反向调用）')
@@ -67,6 +68,7 @@ const exitCode =
         verbose: !!opts['verbose'],
         autoApprove: !!opts['autoApprove'],
         workdir: opts['workdir'] as string | undefined,
+        corpus: opts['corpus'] as string | undefined,
         budget: Number(opts['budget']),
         notesPath: opts['notes'] as string,
         askWhenStuck: !!opts['askWhenStuck'],

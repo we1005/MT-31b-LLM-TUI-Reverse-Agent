@@ -2,11 +2,13 @@
  * --once 模式：非交互执行单任务，无 TUI，纯 stdout/stderr。
  * 适用：脚本化、CI/CD、demo.sh 验收测试。
  */
+import { join } from 'node:path';
 import { Agent } from '../agent.ts';
 import { Budget } from '../budget.ts';
 import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
 import { preflightSourceTree } from '../preflight.ts';
+import { buildCorpusProtocol, buildManifestText, scanCorpus } from '../corpus.ts';
 import { loadSystemPrompt } from '../prompts.ts';
 import { buildResumeContext } from '../resume.ts';
 import { ToolRegistry } from '../tools/index.ts';
@@ -22,6 +24,9 @@ export interface RunOnceOpts {
   verbose: boolean;
   autoApprove: boolean;
   workdir?: string;
+  /** --corpus：案卷续分析模式。指向"强 agent 前置分析产物 + 动态/网络证据"的案卷根目录，
+   *  agent 接手它续分析（定向 + 出处分级 + 跨源三角验证），而非从裸源码树从零逆向。 */
+  corpus?: string;
   budget: number;
   notesPath: string;
   /** --ask-when-stuck：卡住时输出困境报告 + exit=3 停机等外部思路（配合 --strategy 重跑）。 */
@@ -40,11 +45,28 @@ const yellow = (s: string) => color(s, 33);
 const red = (s: string) => color(s, 31);
 
 export async function runOnce(opts: RunOnceOpts): Promise<number> {
-  if (opts.workdir) process.chdir(opts.workdir);
+  // 案卷模式：cwd = 案卷根（相对路径/grep 覆盖整个案卷）；否则 cwd = --workdir（源码树）。
+  if (opts.corpus) {
+    process.chdir(opts.corpus);
+  } else if (opts.workdir) {
+    process.chdir(opts.workdir);
+  }
 
-  // P0 前置校验：源码级任务缺完整源码树 → 秒级 fail-fast + 给配方，别让 agent 撞 123s 超时墙。
-  // 续传模式跳过（笔记里已隐含源码树前提，且 resume 有自己的校验）。见「三提议深度分析」§2。
-  if (!opts.resume) {
+  // 案卷模式：秒级扫案卷根产出 manifest（源码树只记一条、不递归进去）。空目录/不存在 → fail-fast。
+  // 案卷模式自带定向，跳过"源码级任务缺源码树"的 preflight（案卷顶层本就是一堆 MD/pcap/日志）。
+  let corpusManifest: ReturnType<typeof scanCorpus> | undefined;
+  if (opts.corpus) {
+    corpusManifest = scanCorpus(process.cwd());
+    if (corpusManifest.entries.length === 0) {
+      process.stderr.write(
+        yellow(`⚠ 案卷目录为空或不可读：${opts.corpus}\n`) +
+          `--corpus 应指向"强 agent 前置分析产物"的目录（MD 结论 / Frida trace / pcap / dump / 反编译源码树等）。\n`,
+      );
+      return 2;
+    }
+  } else if (!opts.resume) {
+    // P0 前置校验：源码级任务缺完整源码树 → 秒级 fail-fast + 给配方，别让 agent 撞 123s 超时墙。
+    // 续传模式跳过（笔记里已隐含源码树前提，且 resume 有自己的校验）。见「三提议深度分析」§2。
     const pf = preflightSourceTree(opts.task, opts.workdir);
     if (!pf.ok) {
       process.stderr.write(yellow(`⚠ 前置校验未通过：\n`) + `${pf.message}\n`);
@@ -71,7 +93,12 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
 
   // 续传用 §3；否则 §1（--verbose 用 §2）。§9 避坑块会自动拼到 §1/§2/§3 末尾。
   const section = opts.resume ? '§3' : opts.verbose ? '§2' : '§1';
-  const systemPrompt = await loadSystemPrompt({ section });
+  let systemPrompt = await loadSystemPrompt({ section });
+  // 案卷模式：把案卷协议（定向 + 出处分级 + 反幻觉本模式修正 + 跨源三角验证）追加到 system 末尾。
+  // 只在 --corpus 时生效——非 corpus 运行的 system prompt 完全不变。
+  if (corpusManifest) {
+    systemPrompt = `${systemPrompt}\n\n${buildCorpusProtocol(corpusManifest)}`;
+  }
   const model = createLLM({
     backend: opts.backend,
     model: opts.model,
@@ -88,6 +115,19 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
         `budget=${budget.max}\n`,
     ),
   );
+  if (corpusManifest) {
+    const c = corpusManifest.counts;
+    process.stderr.write(
+      cyan(`[rev-agent] 案卷模式：`) +
+        dim(
+          `${corpusManifest.entries.length} 工件 ` +
+            `(MD结论=${c['analysis-md']} 源码树=${c['source-tree']} frida=${c.frida} ` +
+            `网络=${c.network} native-dump=${c['native-dump']} 交接=${c.index})` +
+            (corpusManifest.indexFiles[0] ? ` 先读:${corpusManifest.indexFiles[0]}` : ' 无INDEX(将建议产出草稿)') +
+            '\n',
+        ),
+    );
+  }
 
   const agent = new Agent({
     model,
@@ -158,9 +198,28 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
   let firstMessage = resumeMessage ?? opts.task;
   if (!resumeMessage) {
     const cwd = process.cwd();
-    firstMessage =
-      `【你的当前工作目录（所有相对路径基于此，反编译源码就在这里，直接用，不要去别处搜索）】\n${cwd}\n\n` +
-      `【任务】\n${opts.task}`;
+    if (corpusManifest) {
+      // 案卷模式：cwd + 案卷清单 +（若有）交接文件正文 + 任务。让 agent 开局就有案卷地图，先定向再动手。
+      let indexBlock = '';
+      const top = corpusManifest.indexFiles[0];
+      if (top) {
+        try {
+          const raw = await Bun.file(join(process.cwd(), top)).text();
+          const clip = raw.length > 4000 ? `${raw.slice(0, 4000)}\n…(交接文件过长已截断，需要更多用 read_file)` : raw;
+          indexBlock = `\n\n【交接/定向文件 ${top}（前人留下的，先读懂它）】\n${clip}`;
+        } catch {
+          // 读不到就算了，清单里已标出它的位置
+        }
+      }
+      firstMessage =
+        `【你的当前工作目录 = 案卷根（所有相对路径基于此，直接用，不要去别处搜索）】\n${cwd}\n\n` +
+        `${buildManifestText(corpusManifest)}${indexBlock}\n\n` +
+        `【任务】\n${opts.task}`;
+    } else {
+      firstMessage =
+        `【你的当前工作目录（所有相对路径基于此，反编译源码就在这里，直接用，不要去别处搜索）】\n${cwd}\n\n` +
+        `【任务】\n${opts.task}`;
+    }
   }
   // --strategy：把用户/更强模型的思路前置注入（最高优先级），配合上一轮 exit=3 困境报告，按思路重新分析。
   if (opts.strategy?.trim()) {
