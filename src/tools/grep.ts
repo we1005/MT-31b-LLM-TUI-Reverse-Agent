@@ -98,6 +98,9 @@ function buildArgs(args: GrepInput, useRg: boolean): string[] {
     out.push('-n'); // line number
     out.push('--no-heading');
     out.push('--color=never');
+    // --follow：跟随符号链接子目录。案卷模式（--corpus）里用户常把大反编译源码树 symlink 进案卷根，
+    // rg 默认不遍历 symlink 目录 → 搜不到（P0 冒烟实测到的遗留）。rg 自带 symlink 环路检测，安全。
+    out.push('--follow');
     if (args.ignoreCase) out.push('-i');
     if (args.fixedString) out.push('-F');
     if (args.glob) {
@@ -109,7 +112,8 @@ function buildArgs(args: GrepInput, useRg: boolean): string[] {
     // BSD/GNU grep fallback：默认走 -E（ERE），否则 BSD grep 是 BRE，pattern 里的 `|`
     // 交替会退化成字面量，导致 "MCP|mcp" 这类查询 0 命中（见 CTF benchmark D5）。
     // fixedString 时用 -F 字面量搜索，与 -E 互斥，故二选一。
-    out.push(args.fixedString ? '-rnF' : '-rEn');
+    // 用 -R（dereference-recursive，跟随 symlink 子目录）而非 -r，与上面 rg --follow 对齐（案卷 symlink 源码树）。
+    out.push(args.fixedString ? '-RnF' : '-REn');
     if (args.ignoreCase) out.push('-i');
     if (args.glob) {
       out.push('--include');
