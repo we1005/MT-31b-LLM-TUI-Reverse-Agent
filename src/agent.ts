@@ -310,12 +310,18 @@ export class Agent extends EventEmitter {
         //   且每步都变 → 前缀从第一个 token 就断 → 每步 forcing full re-processing（上下文越长越卡，即"越聊越卡"）。
         // 移到末尾后：[静态 system + 只追加的真实历史] 是稳定前缀，每步只重算「本轮新增 + 台账」这一小截。
         const led = this.ledger.render();
-        const callMessages: ModelMessage[] = led
-          ? [...this.messages, { role: 'user', content: `【系统进度台账·非用户输入，直接用，别重新推导已确认的跳】\n${led}` }]
-          : this.messages;
+        const ledgerBlock = led ? `【系统进度台账·非用户输入，直接用，别重新推导已确认的跳】\n${led}` : '';
+        // 消融开关(REV_AGENT_LEDGER_IN_SYSTEM=1)：把台账放回 system 头部(旧/坏做法)——用于 A/B 验证
+        // 「台账拼 messages 末尾」这个设计是否真的有用(测前缀缓存命中率差异)。默认关=拼末尾(SWA 铁律)。
+        const ledgerInSystem = !!process.env['REV_AGENT_LEDGER_IN_SYSTEM'];
+        const sysPrompt = ledgerInSystem && ledgerBlock ? `${this.systemPrompt}\n\n${ledgerBlock}` : this.systemPrompt;
+        const callMessages: ModelMessage[] =
+          !ledgerInSystem && ledgerBlock
+            ? [...this.messages, { role: 'user', content: ledgerBlock }]
+            : this.messages;
         const result = streamText({
           model: this.opts.model,
-          system: this.systemPrompt,
+          system: sysPrompt,
           messages: callMessages,
           tools: this.opts.tools.asAiSdkTools(),
           abortSignal: ac.signal,
