@@ -40,6 +40,13 @@ export interface LedgerState {
   greps: GrepEntry[];
 }
 
+/** 从跳的一端文本抽第一个「类名/类.方法」规范标识（小写），用于按语义去重。抽不到=装饰/图行。 */
+function hopKeyPart(s?: string): string {
+  if (!s) return '';
+  const m = s.match(/[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?/);
+  return m ? m[0].toLowerCase() : '';
+}
+
 export class Ledger {
   private goal = '';
   private hops: Hop[] = [];
@@ -93,14 +100,19 @@ export class Ledger {
       const t = line.trim();
       if (!/→|->/.test(t)) continue;
       if (!/跳\s*\d|[A-Za-z]\w*\.\w+|\.java|\.smali|:[0-9]/.test(t)) continue;
-      // 去重：同一行原文不重复记
-      if (this.hops.some((h) => h.raw === t)) continue;
       const parts = t.split(/→|->/).map((s) => s.trim());
       const from = parts[0]?.replace(/^跳\s*\d+\s*[:：]?\s*/, '').trim();
       const rest = parts.slice(1).join(' → ');
       const evMatch = rest.match(/([\w$/.]+\.(?:java|smali)\s*[:：]\s*\d+(?:-\d+)?|[\w$.]+:\d+)/);
       const evidence = evMatch ? evMatch[1] : undefined;
       const to = rest.split(/[|｜(（]/)[0]?.trim();
+      // 按语义键(from→to 规范标识)去重，而非原文去重：折叠"同一跳的多种复述 + 最终 ASCII 链路图每行箭头"。
+      // 治过度抽取：chm-medium 实测 3-4 真跳被抽成 19 跳、✓率仅 26%。两端抽不到类/方法标识 = 装饰/图连接行，丢弃。
+      const fk = hopKeyPart(from);
+      const tk = hopKeyPart(to);
+      if (!fk || !tk) continue;
+      const key = `${fk}→${tk}`;
+      if (this.hops.some((h) => `${hopKeyPart(h.from)}→${hopKeyPart(h.to)}` === key)) continue;
       const hop: Hop = { raw: t, from, to, evidence };
       // 交叉核验：证据 file:line 是否落在已 read 的范围里
       if (evidence) {

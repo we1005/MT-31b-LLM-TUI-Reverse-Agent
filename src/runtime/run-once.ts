@@ -24,6 +24,10 @@ export interface RunOnceOpts {
   workdir?: string;
   budget: number;
   notesPath: string;
+  /** --ask-when-stuck：卡住时输出困境报告 + exit=3 停机等外部思路（配合 --strategy 重跑）。 */
+  askWhenStuck?: boolean;
+  /** --strategy：用户/更强模型给的分析思路，前置注入让 agent 按此分析（配合上一轮 exit=3 的困境报告使用）。 */
+  strategy?: string;
 }
 
 function color(s: string, code: number): string {
@@ -90,6 +94,9 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
     tools,
     budget,
     systemPrompt,
+    // --once 无交互:开 escalateWhenStuck + haltWhenStuck → 卡住时输出困境报告 + 停机(stuckHalted)等外部 --strategy,而非强制猜。
+    escalateWhenStuck: !!opts.askWhenStuck,
+    haltWhenStuck: !!opts.askWhenStuck,
     approve: async (call) => {
       if (opts.autoApprove) {
         process.stderr.write(yellow(`  [auto-approve] ${call.name}(${JSON.stringify(call.args).slice(0, 100)})\n`));
@@ -142,6 +149,8 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
   });
   agent.on('warn', (msg) => process.stderr.write(yellow(`⚠ ${msg}\n`)));
   agent.on('error', (e) => process.stderr.write(red(`✗ ${e.message}\n`)));
+  // 卡住求助报告：--once 无交互，打到 stderr 供用户查看（随后 agent 回退强制收尾）。
+  agent.on('stuck', (report) => process.stderr.write(`\n${yellow(report)}\n`));
 
   // 续传时首条消息是注入了笔记全文的续传上下文；否则是用户原始任务。
   // 关键修复：chdir 只让工具的相对路径生效，但 LLM 不知道自己在哪个目录 → 会幻觉路径满世界找。
@@ -153,10 +162,33 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
       `【你的当前工作目录（所有相对路径基于此，反编译源码就在这里，直接用，不要去别处搜索）】\n${cwd}\n\n` +
       `【任务】\n${opts.task}`;
   }
+  // --strategy：把用户/更强模型的思路前置注入（最高优先级），配合上一轮 exit=3 困境报告，按思路重新分析。
+  if (opts.strategy?.trim()) {
+    firstMessage =
+      `【用户/更强模型提供的分析思路——请严格按此执行，不要重复之前无效的做法】\n${opts.strategy.trim()}\n\n${firstMessage}`;
+    process.stderr.write(cyan(`[rev-agent] 已注入 --strategy 思路（${opts.strategy.trim().length} 字），按此分析\n`));
+  }
   agent.addUserMessage(firstMessage);
 
   try {
     await agent.run();
+    // 卡住停机(--ask-when-stuck 且无思路):写困境报告到文件 + exit=3,提示带 --strategy 重跑。
+    if (agent.stuckHalted) {
+      const stuckFile = `${opts.notesPath}.stuck.md`;
+      try {
+        await Bun.write(stuckFile, agent.stuckReport);
+      } catch {
+        // 写文件失败不影响退出(报告已 emit 到 stderr)
+      }
+      process.stderr.write(
+        yellow(`\n🆘 已卡住停机(exit=3)。困境报告已写入 ${stuckFile}。\n`) +
+          cyan(
+            `把该报告交给更强的模型取得思路后，用以下命令按思路续跑：\n` +
+              `  rev-agent --once "${opts.task.slice(0, 40)}..." --workdir ${opts.workdir ?? process.cwd()} --ask-when-stuck --strategy "<粘贴思路>"\n`,
+          ),
+      );
+      return 3;
+    }
     process.stderr.write(green(`\n✓ done (steps=${agent.step} budget=${budget.used}/${budget.max})\n`));
     return 0;
   } catch (e) {

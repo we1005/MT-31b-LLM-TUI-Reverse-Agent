@@ -35,6 +35,8 @@ interface State {
   pending: PendingApproval | null;
   busy: boolean;
   input: string;
+  /** 卡住求助：非 null 时输入框进入"粘贴思路"模式，提交的文本 resolve 给 agent 续跑（/skip=放弃→回退自动收尾）。 */
+  strategyResolve: ((s: string | null) => void) | null;
 }
 
 type Action =
@@ -44,7 +46,8 @@ type Action =
   | { type: 'budget'; used: number; max: number }
   | { type: 'pending'; p: PendingApproval | null }
   | { type: 'busy'; v: boolean }
-  | { type: 'input'; v: string };
+  | { type: 'input'; v: string }
+  | { type: 'strategyMode'; resolve: ((s: string | null) => void) | null };
 
 const init: State = {
   messages: [],
@@ -53,6 +56,7 @@ const init: State = {
   pending: null,
   busy: false,
   input: '',
+  strategyResolve: null,
 };
 
 function reducer(s: State, a: Action): State {
@@ -79,6 +83,8 @@ function reducer(s: State, a: Action): State {
       return { ...s, busy: a.v };
     case 'input':
       return { ...s, input: a.v };
+    case 'strategyMode':
+      return { ...s, strategyResolve: a.resolve };
   }
 }
 
@@ -95,14 +101,25 @@ export interface ApprovalChannel {
   subscribe: (cb: (r: ApprovalRequest) => void) => () => void;
 }
 
+/** 卡住求助请求：agent 卡住时带困境报告发来，UI 展示报告 + 收用户思路后 resolve（null=放弃）。 */
+export interface StrategyRequest {
+  report: string;
+  resolve: (strategy: string | null) => void;
+}
+/** 求助通道：agent.askStrategy 用 ask(report) 触发，App 用 subscribe 接收。 */
+export interface StrategyChannel {
+  subscribe: (cb: (r: StrategyRequest) => void) => () => void;
+}
+
 export interface AppProps {
   agent: Agent;
   notesPath: string;
   onSubmit: (text: string) => Promise<void>;
   approvalChannel: ApprovalChannel;
+  strategyChannel?: StrategyChannel;
 }
 
-export function App({ agent, notesPath, onSubmit, approvalChannel }: AppProps) {
+export function App({ agent, notesPath, onSubmit, approvalChannel, strategyChannel }: AppProps) {
   const [state, dispatch] = useReducer(reducer, init);
   const { width } = useTerminalDimensions();
   const inputRef = useRef<{ value: string } | null>(null);
@@ -114,6 +131,17 @@ export function App({ agent, notesPath, onSubmit, approvalChannel }: AppProps) {
     });
     return unsub;
   }, [approvalChannel]);
+
+  // 订阅卡住求助请求：把困境报告作为一条 system 消息推进消息流(供用户阅读/复制)，并把输入框切到"粘贴思路"模式。
+  useEffect(() => {
+    if (!strategyChannel) return;
+    const unsub = strategyChannel.subscribe((r) => {
+      dispatch({ type: 'msg', m: { id: nanoid(), role: 'system', text: `🆘 卡住求助 — 请把下面的困境报告复制给更强的模型，取得思路后粘贴回输入框（/skip 放弃、回退自动收尾）：\n\n${r.report}` } });
+      dispatch({ type: 'strategyMode', resolve: r.resolve });
+      dispatch({ type: 'busy', v: false }); // 暂停忙碌态，等用户粘贴思路
+    });
+    return unsub;
+  }, [strategyChannel]);
 
   // 流式增量的当前消息 id（每段 assistant/reasoning 连续增量拼进同一条）
   const streamIds = useRef<{ assistant: string | null; reasoning: string | null }>({
@@ -233,7 +261,13 @@ export function App({ agent, notesPath, onSubmit, approvalChannel }: AppProps) {
         {/* biome-ignore lint/suspicious/noExplicitAny: OpenTUI 的 <input> 跟 React.JSX 的 HTML input 类型合并冲突，cast 绕过 */}
         <input
           flexGrow={1}
-          placeholder={state.busy ? '处理中...（按 Ctrl-C 取消）' : '输入任务后回车（/quit 退出）'}
+          placeholder={
+            state.strategyResolve
+              ? '🆘 粘贴更强模型给的分析思路后回车（/skip 放弃、回退自动收尾）'
+              : state.busy
+                ? '处理中...（按 Ctrl-C 取消）'
+                : '输入任务后回车（/quit 退出）'
+          }
           value={state.input}
           onInput={((value: string) => {
             inputRef.current = { value };
@@ -241,6 +275,19 @@ export function App({ agent, notesPath, onSubmit, approvalChannel }: AppProps) {
           }) as any}
           onSubmit={((value: string) => {
             if (value === '/quit') process.exit(0);
+            // 卡住求助模式：提交的文本作为"思路"resolve 给 agent 续跑；/skip 或空=放弃→回退自动收尾。
+            if (state.strategyResolve) {
+              const r = state.strategyResolve;
+              dispatch({ type: 'strategyMode', resolve: null });
+              dispatch({ type: 'input', v: '' });
+              const strat = value.trim() === '/skip' ? null : value;
+              if (strat && strat.trim()) {
+                dispatch({ type: 'msg', m: { id: nanoid(), role: 'user', text: `[思路] ${strat}` } });
+                dispatch({ type: 'busy', v: true });
+              }
+              r(strat);
+              return;
+            }
             handleSubmit(value);
           }) as any}
         />
@@ -284,6 +331,34 @@ export function createApprovalChannel(): ApprovalChannel & {
   const ask = (name: string, args: unknown): Promise<boolean> =>
     new Promise<boolean>((resolve) => {
       const req: ApprovalRequest = { id: nanoid(), name, args, resolve };
+      if (subscriber) subscriber(req);
+      else queue.push(req);
+    });
+
+  return { subscribe, ask };
+}
+
+/**
+ * 卡住求助通道工厂：agent.askStrategy 用 ask(report) 触发（等用户在 TUI 粘贴思路），App 用 subscribe 接收。
+ * 返回的 Promise 在用户提交思路(string)或放弃(/skip→null)时 resolve。
+ */
+export function createStrategyChannel(): StrategyChannel & {
+  ask: (report: string) => Promise<string | null>;
+} {
+  let subscriber: ((r: StrategyRequest) => void) | null = null;
+  const queue: StrategyRequest[] = [];
+
+  const subscribe = (cb: (r: StrategyRequest) => void) => {
+    subscriber = cb;
+    while (queue.length && subscriber) subscriber(queue.shift()!);
+    return () => {
+      subscriber = null;
+    };
+  };
+
+  const ask = (report: string): Promise<string | null> =>
+    new Promise<string | null>((resolve) => {
+      const req: StrategyRequest = { report, resolve };
       if (subscriber) subscriber(req);
       else queue.push(req);
     });

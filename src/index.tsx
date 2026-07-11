@@ -28,6 +28,8 @@ const program = new Command()
   .option('--notes <path>', '工作笔记路径', '/tmp/work-notes.md')
   .option('--mcp-server', '进入 MCP server 模式（stdio transport，给 Claude Code/Cursor 反向调用）')
   .option('--allow-write', 'MCP server 模式下放行 write 类工具（默认拒）')
+  .option('--ask-when-stuck', '原地打转时不强制猜答案，改为输出困境报告求思路（TUI 粘贴续跑 / --once 输出报告并 exit=3）')
+  .option('--strategy <text>', '（配合 --once）注入用户/更强模型给的分析思路，让 agent 按此重新分析（承接上一轮 exit=3 的困境报告）')
   .allowExcessArguments(false);
 
 await program.parseAsync(process.argv);
@@ -67,6 +69,8 @@ const exitCode =
         workdir: opts['workdir'] as string | undefined,
         budget: Number(opts['budget']),
         notesPath: opts['notes'] as string,
+        askWhenStuck: !!opts['askWhenStuck'],
+        strategy: opts['strategy'] as string | undefined,
       })
     : await runInteractive({
         resume,
@@ -79,6 +83,7 @@ const exitCode =
         workdir: opts['workdir'] as string | undefined,
         budget: Number(opts['budget']),
         notesPath: opts['notes'] as string,
+        askWhenStuck: !!opts['askWhenStuck'],
       });
 
 process.exit(exitCode);

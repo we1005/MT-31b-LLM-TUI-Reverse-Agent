@@ -12,7 +12,7 @@ import { createLLM } from '../llm.ts';
 import { loadSystemPrompt } from '../prompts.ts';
 import { buildResumeContext } from '../resume.ts';
 import { ToolRegistry } from '../tools/index.ts';
-import { App, createApprovalChannel } from '../ui/App.tsx';
+import { App, createApprovalChannel, createStrategyChannel } from '../ui/App.tsx';
 
 export interface RunInteractiveOpts {
   /** 从工作笔记续传：用 §3 续传 prompt + 预注入笔记并自动起跑首轮 */
@@ -26,6 +26,8 @@ export interface RunInteractiveOpts {
   workdir?: string;
   budget: number;
   notesPath: string;
+  /** --ask-when-stuck：卡住时输出困境报告，等用户在 TUI 粘贴更强模型给的思路后续跑。 */
+  askWhenStuck?: boolean;
 }
 
 export async function runInteractive(opts: RunInteractiveOpts): Promise<number> {
@@ -54,6 +56,7 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
   const tools = new ToolRegistry();
   const budget = new Budget(opts.budget ?? DEFAULT_CONFIG.tokenBudget);
   const approvalChannel = createApprovalChannel();
+  const strategyChannel = createStrategyChannel();
 
   const agent = new Agent({
     model,
@@ -64,6 +67,9 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
       if (opts.autoApprove) return true;
       return approvalChannel.ask(call.name, call.args);
     },
+    // --ask-when-stuck：卡住时通过 TUI 求助通道展示困境报告、等用户粘贴思路（返回 null=放弃→回退强制收尾）。
+    escalateWhenStuck: !!opts.askWhenStuck,
+    askStrategy: opts.askWhenStuck ? (report) => strategyChannel.ask(report) : undefined,
   });
 
   const renderer = await createCliRenderer({
@@ -91,6 +97,7 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
       notesPath: opts.notesPath,
       onSubmit,
       approvalChannel,
+      strategyChannel,
     }),
   );
 

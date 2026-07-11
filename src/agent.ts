@@ -30,6 +30,8 @@ export interface AgentEvents {
   warn: (msg: string) => void;
   error: (e: Error) => void;
   done: (reason: string) => void;
+  /** 卡住求助（--ask-when-stuck）：原地打转时输出详细困境报告，等用户/更强模型给思路。UI 应展示 report 并切"粘贴思路"输入。 */
+  stuck: (report: string) => void;
 }
 
 export type ApprovalDecider = (call: ToolCallPending) => Promise<boolean>;
@@ -87,6 +89,21 @@ export interface AgentOpts {
   enoughHops?: number;
   /** 连续几步无任何新 read/grep/hop（原地打转）→ 强制收尾报告已确认证据。默认 3。不依赖 hops，堵"有进展后又卡死"。 */
   stallCap?: number;
+  /** 连续几步只 grep、无新 read/hop（搜不到目标空转）→ 强制收尾。默认 5。堵"每步换 grep 逃过 stallCap"的墙钟。 */
+  readHopStallCap?: number;
+  /** 进入 forcedFinish 后，模型若仍不断要工具调用，最多再放行几步就硬终止（防不听话小模型跑到墙钟）。默认 2。 */
+  maxForcedSteps?: number;
+  /** --ask-when-stuck：原地打转时不再"强制猜答案"，而是输出困境报告、征求用户/更强模型思路后再续。默认 false（保自动化）。 */
+  escalateWhenStuck?: boolean;
+  /**
+   * 卡住求助回调：agent 卡住时调用，传入困境报告文本，返回用户/更强模型给的分析思路（null=用户不给→回退强制收尾）。
+   * 交互 TUI 提供此回调（展示报告→切"粘贴思路"输入→resolve）；--once 非交互不提供→恒回退。默认 no-op 返回 null。
+   */
+  askStrategy?: (report: string) => Promise<string | null>;
+  /** 卡住求助最多几次（防"求助→重置→又打转→再求助"无限循环）；超上限即使有回调也回退 forcedFinish。默认 3。 */
+  maxEscalations?: number;
+  /** --once 卡住停机：无交互 askStrategy 回调时，卡住→停机(设 stuckHalted)等外部 --strategy 反哺，而非强制猜。默认 false。 */
+  haltWhenStuck?: boolean;
 }
 
 /** 判断 LLM 调用错误是否可重试（网络抖动/限流/5xx/超时/abort），据此决定退避重试还是直接 throw（A2）。 */
@@ -165,12 +182,30 @@ export class Agent extends EventEmitter {
   private nudgeCount = 0;
   private redSteps = 0;
   private forcedFinish = false;
+  private forcedFinishSteps = 0;
+  private noInvestigateNudged = false;
+  private escalationCount = 0;
+  /** --once 卡住停机:无交互回调时,卡住→停机等外部 --strategy 反哺(而非强制猜)。runtime 读此标志决定 exit=3 + 写报告。 */
+  stuckHalted = false;
+  stuckReport = '';
   private toolCallTotal = 0;
   private wrapNudged = false;
   private wrapFinished = false;
   /** 进度停滞检测：上次的 (reads+greps+hops) 进度标量 + 连续无进展步数。 */
   private lastProgress = 0;
   private stallSteps = 0;
+  /** grep 空转检测：上次的 (reads+hops)（不含 greps）+ 连续只 grep 不读新代码/不连新跳的步数。 */
+  private lastReadHop = 0;
+  private readHopStallSteps = 0;
+  /** 去重后的成功 shell 命令集（shell ls/find 探目录是合法进展，计入 stall 进度度量，避免误杀 shell 导航）。 */
+  private readonly shellCmdsSeen = new Set<string>();
+  /** 组件埋点计分卡聚合量（收尾 emit 一行 [SCORECARD] 供逐组件打分）。 */
+  private nudgesTotal = 0;
+  private stallTriggered = false;
+  private cacheSum = 0;
+  private cacheCount = 0;
+  private cacheMin = 101;
+  private maxCtx = 0;
   private readonly foldedIds = new Set<string>();
   private dedupHits = 0;
   private explorationNudges = 0;
@@ -199,6 +234,12 @@ export class Agent extends EventEmitter {
       exploreCap: 8,
       enoughHops: 4,
       stallCap: 3,
+      readHopStallCap: 5,
+      maxForcedSteps: 2,
+      escalateWhenStuck: false,
+      askStrategy: async () => null,
+      maxEscalations: 3,
+      haltWhenStuck: false,
       ...opts,
     } as Required<AgentOpts>;
     this.systemPrompt = opts.systemPrompt;
@@ -351,6 +392,28 @@ export class Agent extends EventEmitter {
   }
 
   /**
+   * 组件埋点计分卡（收尾一次性 emit 一行，供 harness 逐组件打分、有理有据定位薄弱环节）。
+   * 常开（不藏进 dev 模式）——极便宜，且 loop 每轮都要。重量级 dump 才该 gate 进 --debug。
+   * 各字段对应组件：ledger=台账 / cache=SWA稳定前缀 / max_ctx+folded=ctx控制 / nudges=断链防护 /
+   *   stall+forced=止损 / wrap+conclusion=收尾 / dedup=工具层无效重复 / steps=探索效率。
+   */
+  private emitScorecard(): void {
+    const ms = this.ledger.stats();
+    const cacheAvg = this.cacheCount ? Math.round(this.cacheSum / this.cacheCount) : -1;
+    const cacheMin = this.cacheCount ? this.cacheMin : -1;
+    const conclusion = /##\s*最终结论|最终(答案|结论)/.test(
+      this.messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join(''),
+    );
+    this.emit(
+      'warn',
+      `[SCORECARD] steps=${this.stepCount} ledger(hops=${ms.hops} ✓${ms.corroborated} reads=${ms.reads} greps=${ms.greps})` +
+        ` cache_avg=${cacheAvg}% cache_min=${cacheMin}% max_ctx=${this.maxCtx} folded=${this.foldedIds.size} dedup=${this.dedupHits}` +
+        ` nudges=${this.nudgesTotal} explore_nudges=${this.explorationNudges} stall=${this.stallTriggered ? 1 : 0}` +
+        ` forced=${this.forcedFinish ? 1 : 0} wrap=${this.wrapFinished ? 1 : 0} conclusion=${conclusion ? 1 : 0}`,
+    );
+  }
+
+  /**
    * 折叠已读 tool-result（方案 B，直击根因）：除最近 keepRecent 条外，把 tool 消息里
    * 原始 output.value 换成轻量 stub，保留 toolCallId/toolName（v6 要求 tool-call↔result 配对）。
    * 根因：callLLM 每步全量重发 messages，而每次 tool 原始结果永久累积 → prefill 二次增长(冲到173k)。
@@ -423,6 +486,68 @@ export class Agent extends EventEmitter {
     return null;
   }
 
+  /**
+   * 卡住求助（--ask-when-stuck）：构造详细困境报告，供用户转交更强模型取思路。
+   * 内容=目标+已走步数/工具数+已确认链路跳(renderChainGraph)+已读类/已搜pattern(render)+卡住原因+求助指引。
+   */
+  private buildStuckReport(reason: string): string {
+    const ms = this.ledger.stats();
+    return [
+      '## 🆘 rev-agent 卡住了 — 求助·困境报告',
+      `**卡住原因**：${reason}`,
+      `**目标**：${this.ledger.toJSON().goal || '(见任务描述)'}`,
+      `**已走**：${this.stepCount} 步，工具调用 ${this.toolCallTotal} 次，真实上下文 ~${this.contextTokens()} tok`,
+      `**已确认链路跳（${ms.hops} 跳，交叉核验 ${ms.corroborated}）**：\n${this.ledger.renderChainGraph()}`,
+      `**调查足迹（已读类 / 已搜 pattern）**：\n${this.ledger.render(3000)}`,
+      '**我卡在哪**：上面的搜索/阅读没能连出下一跳、或定位不到目标类；继续同样的做法只是原地打转。',
+      '**需要的帮助**：请把本报告交给更强的模型，取得具体的下一步思路——例如「该 grep 什么新锚点 / 该读哪个类 / 该换什么反向追踪起点 / 是否需要动态分析」，然后把思路贴回给我，我会严格按新思路继续（不重复上面无效的做法）。',
+    ].join('\n\n');
+  }
+
+  /**
+   * 卡住时三选一（--ask-when-stuck）：
+   * - 'continue'：有 askStrategy 回调(TUI)且拿到思路 → 注入思路+重置全部卡住计数 → 调用方 continue（会话内求助）。
+   * - 'stop'：无思路但 haltWhenStuck(--once) → 设 stuckHalted+stuckReport → 调用方停机，runtime exit=3 等外部 --strategy 反哺。
+   * - 'forced'：未开开关 / 超求助上限 / 无思路且非 halt → 调用方走原 forcedFinish 兜底(强制猜)。
+   */
+  private async stuckIntervene(reason: string): Promise<'continue' | 'stop' | 'forced'> {
+    if (!this.opts.escalateWhenStuck) return 'forced';
+    if (this.escalationCount >= this.opts.maxEscalations) return 'forced'; // 求助次数上限，防无限求助循环
+    const report = this.buildStuckReport(reason);
+    this.emit('stuck', report);
+    let strategy: string | null = null;
+    try {
+      strategy = await this.opts.askStrategy(report);
+    } catch {
+      strategy = null;
+    }
+    if (strategy?.trim()) {
+      // 注入思路 + 重置全部卡住计数（视为全新开始，给新思路充分探索空间）
+      this.messages.push({
+        role: 'user',
+        content: `【用户/更强模型给出的分析思路——请严格按此继续，不要重复之前无效的搜索/阅读】\n${strategy.trim()}`,
+      });
+      this.stallSteps = 0;
+      this.readHopStallSteps = 0;
+      this.explorationNudges = 0;
+      this.lastProgress = -1;
+      this.lastReadHop = -1;
+      this.toolCallTotal = 0;
+      this.nudgeCount = 0;
+      this.escalationCount++;
+      this.emit('warn', `已收到用户思路(第${this.escalationCount}次求助)，重置卡住计数，按新思路继续分析`);
+      return 'continue';
+    }
+    // 无思路：--once haltWhenStuck → 停机等外部 --strategy 反哺；否则回退强制猜
+    if (this.opts.haltWhenStuck) {
+      this.stuckHalted = true;
+      this.stuckReport = report;
+      this.emit('warn', '卡住且无思路反馈，停机等外部 --strategy（exit=3）；重跑时加 --strategy "<思路>" 按思路续跑');
+      return 'stop';
+    }
+    return 'forced';
+  }
+
   /** 跑主循环，直到 LLM 不再要 tool 或撞到 maxSteps */
   async run(): Promise<void> {
     while (this.stepCount < this.opts.maxSteps) {
@@ -433,15 +558,18 @@ export class Agent extends EventEmitter {
         // 记忆表现遥测（用户要求：每步记录上下文记忆表现，非只成败）：
         // ctx=真实上下文 folded=已折叠tool结果数 dedup=重复读被拦次数 台账 hops/reads/greps
         const ms = this.ledger.stats();
+        const ctxNow0 = this.contextTokens();
+        if (ctxNow0 > this.maxCtx) this.maxCtx = ctxNow0;
         this.emit(
           'warn',
-          `[ctx=${this.contextTokens()} step=${this.stepCount} folded=${this.foldedIds.size} dedup=${this.dedupHits} hops=${ms.hops}(✓${ms.corroborated}) reads=${ms.reads} greps=${ms.greps}]`,
+          `[ctx=${ctxNow0} step=${this.stepCount} folded=${this.foldedIds.size} dedup=${this.dedupHits} hops=${ms.hops}(✓${ms.corroborated}) reads=${ms.reads} greps=${ms.greps}]`,
         );
 
         // 进度停滞硬止损（不依赖 hops，堵"有进展后又卡死"）：连续 stallCap 步 (reads+greps+hops) 无增长
         //   = 原地打转（resume 实测：追到2跳后死磕幻觉类 C18330，dedup 提示也不听，reads/greps 卡死不动，
         //   但 hops=2 让 hops==0 探索 nudge 永不触发→空转到 300s 墙钟）。直接强制收尾报告已确认证据。
-        const progress = ms.reads + ms.greps + ms.hops;
+        // 进度含去重 shell 命令数：shell ls/find 探目录结构是合法进展（否则用 shell 导航会被误判空转→np-r9 0/7）。
+        const progress = ms.reads + ms.greps + ms.hops + this.shellCmdsSeen.size;
         if (progress > this.lastProgress) {
           this.lastProgress = progress;
           this.stallSteps = 0;
@@ -449,7 +577,15 @@ export class Agent extends EventEmitter {
           this.stallSteps++;
         }
         if (this.stallSteps >= this.opts.stallCap && !this.forcedFinish) {
+          const iv = await this.stuckIntervene(`连续 ${this.stallSteps} 步无新进展(原地打转)`);
+          if (iv === 'continue') continue;
+          if (iv === 'stop') {
+            this.emitScorecard();
+            this.emit('done', 'stuck_halt');
+            return;
+          }
           this.forcedFinish = true;
+          this.stallTriggered = true;
           this.emit('warn', `连续 ${this.stallSteps} 步无新进展(原地打转)，强制收尾报告已确认证据`);
           this.messages.push({
             role: 'user',
@@ -462,13 +598,51 @@ export class Agent extends EventEmitter {
           continue;
         }
 
+        // grep 空转硬止损（补上面 stall 盲区）：只看 reads+hops——连续 readHopStallCap 步没读进任何新代码、
+        //   也没连出新跳（哪怕每步都在 +grep）= 在反复搜一个定位不到的目标空转。via-r7 实测真缺陷：
+        //   reads 卡在 3 十步、每步只 +1 grep，(reads+greps+hops) 因 grep 涨而上面的 stall 永不触发→撞 480s 墙、0 结论。
+        const readHop = ms.reads + ms.hops;
+        if (readHop > this.lastReadHop) {
+          this.lastReadHop = readHop;
+          this.readHopStallSteps = 0;
+        } else if (this.stepCount > 1) {
+          this.readHopStallSteps++;
+        }
+        if (this.readHopStallSteps >= this.opts.readHopStallCap && !this.forcedFinish) {
+          const iv = await this.stuckIntervene(`连续 ${this.readHopStallSteps} 步只 grep 未读新代码/未连新跳(搜不到目标空转)`);
+          if (iv === 'continue') continue;
+          if (iv === 'stop') {
+            this.emitScorecard();
+            this.emit('done', 'stuck_halt');
+            return;
+          }
+          this.forcedFinish = true;
+          this.stallTriggered = true;
+          this.emit('warn', `连续 ${this.readHopStallSteps} 步只 grep 未读新代码/未连新跳（搜不到目标空转），强制收尾`);
+          this.messages.push({
+            role: 'user',
+            content:
+              '你连续多步在反复 grep，却没有读进任何新代码、也没连出新的一跳——很可能在搜一个定位不到的目标。' +
+              '停止搜索，立即用已确认证据输出以「## 最终结论」开头的答案（把已追出的跳写成链路图，未证实的标"待确认"给最佳推断）。不要再调用工具。' +
+              (this.ledger.hopCount() ? `\n\n已确认链路草稿：\n${this.ledger.renderChainGraph()}` : ''),
+          });
+          continue;
+        }
+
         // 迷路空转干预（可复触发+升级）：hops=0 且工具调用每再积累 exploreCap 次 → 介入一次。
         // Round1/2 Via 发现：一次性提醒不够,agent 会迷路到 maxSteps;dedup 打转多次也没二次干预。
         // 第1次:换策略(反向追踪)。第≥2次:判定此题起点定位超出能力→强制收尾报告卡点,不放任烧到 maxSteps。
         if (!this.forcedFinish && this.ledger.hopCount() === 0 && this.toolCallTotal >= this.opts.exploreCap * (this.explorationNudges + 1)) {
           this.explorationNudges++;
           if (this.explorationNudges >= 2 && !this.forcedFinish) {
-            // 第2次仍0台账 = 起点客观定位不出,止损:让它报告已排除的、卡在哪,不再空烧
+            // 第2次仍0台账 = 起点客观定位不出。先尝试求助(--ask-when-stuck)，拿到思路则重置续跑，否则止损/停机。
+            const iv = await this.stuckIntervene(`探索 ${this.toolCallTotal} 次仍连不出第一跳，起点难定位`);
+            if (iv === 'continue') continue;
+            if (iv === 'stop') {
+              this.emitScorecard();
+              this.emit('done', 'stuck_halt');
+              return;
+            }
             this.forcedFinish = true;
             this.emit('warn', `探索 ${this.toolCallTotal} 次、${this.explorationNudges} 轮干预仍0台账，判定起点难定位，强制收尾报告卡点`);
             this.messages.push({
@@ -496,6 +670,7 @@ export class Agent extends EventEmitter {
         // 主动提示"主干够了就拼台账收尾"（一次性，不硬砍，agent 仍可判断确需再追）。
         const hopN = this.ledger.hopCount();
         if (
+          !this.forcedFinish && // 已强制收尾时不再发"评估是否收尾"软提示，避免与 forcedFinish 硬指令信号打架 + 白耗一步
           !this.wrapNudged &&
           hopN >= this.opts.enoughHops &&
           !/##\s*最终结论/.test(this.messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join(''))
@@ -530,7 +705,11 @@ export class Agent extends EventEmitter {
         const inTok = uAny?.inputTokens ?? 0;
         const cachedTok = uAny?.cachedInputTokens ?? 0;
         if (inTok > 0 && this.stepCount > 1) {
-          this.emit('warn', `[prefix-cache 命中 ${Math.round((cachedTok / inTok) * 100)}% (cached=${cachedTok}/${inTok})]`);
+          const pct = Math.round((cachedTok / inTok) * 100);
+          this.cacheSum += pct;
+          this.cacheCount++;
+          if (pct < this.cacheMin) this.cacheMin = pct;
+          this.emit('warn', `[prefix-cache 命中 ${pct}% (cached=${cachedTok}/${inTok})]`);
         }
 
         // 2) emit 文本（如果有）+ 从正文提升结构化台账（收编脆弱正则计数 → ledger 唯一真相源）
@@ -574,9 +753,24 @@ export class Agent extends EventEmitter {
           const text = result.text ?? '';
           const finish = result.finishReason ?? 'unknown';
           const finishIsClean = finish === 'stop' || finish === 'end_turn';
+          // Defect F（R10 mtmod-r10-01 实测）：逆向 agent 一次工具都没调、没读一行代码就下结论
+          //   （凭"有道翻译=MD5+AES"通用先验蒙 4/10、未核实）→ 幻觉风险。要求至少调查一次再收尾（一次性）。
+          if (this.toolCallTotal === 0 && !this.noInvestigateNudged && !this.forcedFinish) {
+            this.noInvestigateNudged = true;
+            this.nudgesTotal++;
+            this.emit('warn', '未调用任何工具就下结论(未核实源码)，注入一次"先读码核实"提醒');
+            this.messages.push({
+              role: 'user',
+              content:
+                '你还没有用 grep/read_file 读过任何一行实际代码就给结论了——这是逆向任务，答案必须基于源码核实、不能凭先验猜测。' +
+                '请先 grep 起点锚点定位关键类、再 read_file 打开确认，然后才输出以「## 最终结论」开头的答案。',
+            });
+            continue;
+          }
           const suspicious = endsWithContinuationIntent(text) || (!finishIsClean && text.trim().length < 40);
           if (suspicious && this.nudgeCount < this.opts.maxNudges) {
             this.nudgeCount++;
+            this.nudgesTotal++;
             const red = this.opts.budget.level() === 'red';
             this.emit(
               'warn',
@@ -634,6 +828,7 @@ export class Agent extends EventEmitter {
             });
             continue;
           }
+          this.emitScorecard();
           this.emit('done', finish);
           return;
         }
@@ -653,6 +848,31 @@ export class Agent extends EventEmitter {
           if (m.role === 'assistant' && !this.alreadyAppended(m)) {
             this.messages.push(m);
           }
+        }
+
+        // 4.5) forcedFinish **强制执行**（非劝告）：已进入强制收尾后，模型若仍要工具调用，一律拒执行，
+        //   回喂"工具已禁用，立即输出 ## 最终结论"。治 np-r6 实测真缺陷：exploration 升级触发 forcedFinish 后，
+        //   35B 无视"停止探索"继续 grep（greps 12→15、ctx 涨到 18k）→ 撞 480s 墙、0 产出、无结论。
+        //   劝告式 forcedFinish 只对听话模型有效；此处改成硬禁用 + 步数兜底，任何原因的强制收尾都能真终止。
+        if (this.forcedFinish) {
+          this.forcedFinishSteps++;
+          if (this.forcedFinishSteps > this.opts.maxForcedSteps) {
+            this.emit('warn', `强制收尾后仍 ${this.forcedFinishSteps} 步不落结论，硬终止（已禁工具）`);
+            this.emitScorecard();
+            this.emit('done', 'forced_finish_exhausted');
+            return;
+          }
+          for (const tc of result.toolCalls) {
+            // biome-ignore lint/suspicious/noExplicitAny: SDK 类型未完全公开
+            const id = (tc as any).toolCallId ?? '';
+            // biome-ignore lint/suspicious/noExplicitAny: SDK 类型未完全公开
+            const name = (tc as any).toolName ?? '';
+            this.emit('toolDenied', id, name, 'forced_finish_tools_disabled');
+            this.appendToolResult(id, name, {
+              error: '已进入强制收尾，工具已禁用。立即输出以「## 最终结论」开头的答案（用已确认证据+待确认推断），不要再调用任何工具。',
+            });
+          }
+          continue;
         }
 
         // 5) 逐个 tool call → 审批 → 执行
@@ -700,6 +920,11 @@ export class Agent extends EventEmitter {
             this.emit('toolResult', id, name, { error });
           } else {
             this.ledger.observeToolResult(name, args, r); // 系统自动抽 reads/greps 进台账(零LLM)
+            // 记去重后的成功 shell 命令数(供 stall 进度度量)：shell ls/find 探目录是合法进展，
+            //   但 ledger 只抽 reads/greps → 用 shell 探路时 stall 误判空转(np-r9 实测:ls 导航中被误杀0/7)。
+            if (name === 'shell' && args && typeof (args as { cmd?: unknown }).cmd === 'string') {
+              this.shellCmdsSeen.add((args as { cmd: string }).cmd);
+            }
             this.appendToolResult(id, name, r);
             this.emit('toolResult', id, name, r);
           }
@@ -709,6 +934,7 @@ export class Agent extends EventEmitter {
         throw e;
       }
     }
+    this.emitScorecard();
     this.emit('warn', `已达最大循环数 ${this.opts.maxSteps}，强制结束`);
     this.emit('done', 'max_steps');
   }

@@ -47,21 +47,36 @@ export function looksLikeSourceTree(dir: string): boolean {
   for (const m of markers) {
     if (existsSync(join(dir, m))) return true;
   }
-  // 目录本身直接含 .java / .smali / .dex（用户把 --workdir 指到 sources 内部时）
+  // 目录本身（或其下若干层包目录里）含 .java / .smali / .dex。
+  // 有界递归：早年只查一层，命中 MT 扁平混淆包 l/C7671.java（.java 在 sources 下 1 层），
+  // 但正常包嵌套 com/pdagate/chmreaderlib/X.java（.java 在 3 层下）会漏判 → CHM 被 preflight 误杀。
+  // 改成限深早退递归，覆盖任意深度的正常包结构。
+  return hasSourceFileDeep(dir, 6);
+}
+
+/** 有界递归找首个 .java/.smali/.dex（命中即早退，避免扫全树；限深覆盖正常包嵌套 com/vendor/module/…）。 */
+function hasSourceFileDeep(dir: string, maxDepth: number): boolean {
+  let entries: string[];
   try {
-    const entries = readdirSync(dir);
-    if (entries.some((e) => /\.(java|smali|dex)$/.test(e))) return true;
-    // 或含单字母混淆包目录（jadx sources 常见 l/ o/ p/ 之类）里有 .java
-    for (const e of entries.slice(0, 40)) {
+    entries = readdirSync(dir);
+  } catch {
+    return false;
+  }
+  const subdirs: string[] = [];
+  for (const e of entries) {
+    if (/\.(java|smali|dex)$/.test(e)) return true;
+    if (maxDepth > 0) {
       const sub = join(dir, e);
       try {
-        if (statSync(sub).isDirectory() && readdirSync(sub).some((f) => /\.(java|smali)$/.test(f))) return true;
+        if (statSync(sub).isDirectory()) subdirs.push(sub);
       } catch {
         // skip
       }
     }
-  } catch {
-    // skip
+  }
+  if (maxDepth <= 0) return false;
+  for (const sub of subdirs.slice(0, 60)) {
+    if (hasSourceFileDeep(sub, maxDepth - 1)) return true;
   }
   return false;
 }
