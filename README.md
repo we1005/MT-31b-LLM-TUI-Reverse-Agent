@@ -186,21 +186,24 @@ shell 审批分级：`auto`（`aapt2 dump`/`apkid`/`jadx -d`/`grep`/`strings`…
 
 ## 能力边界与上限（实测标定）
 
-> 下面的判断来自对 6+ 个真实 app（含破解 mod）跨栈实测 + 强模型质量评审（非关键词），详见 `docs-resources/安全审计-篡改APK破解审计.md` 与 `docs-resources/测试语料广度-技术栈与保护手段矩阵分析.md`。
+> 下面的判断来自对 9+ 个真实 app（含破解 mod）跨栈、跨难度三轮实测 + 强模型质量评审（非关键词），详见 `docs-resources/安全审计-篡改APK破解审计.md` 与 `docs-resources/测试语料广度-技术栈与保护手段矩阵分析.md`。
+> ⚠️ 重要校准（第 3 轮硬骨头实测）：能力**随目标难度衰减很快**——可读硬编码破解上优秀（Clone 到期时间戳 88、零幻觉），但重混淆/多栈/诱饵密集目标上**平均仅 31/100、半数 major 幻觉**。别把甜区表现当全域能力。
 
 ### ✅ 能做到（本地 35B + jadx 静态，实测达标）
 - **jadx 可见 dex（Java/Kotlin native）的静态逆向**：多跳调用链追踪（≤4 跳、起点明确时稳定全对；5 跳硬链亦可，如 APK v2/v4 签名验证链）、类/方法定位、格式常量/协议解析。
 - **安全审计（破解点定位 + 技术 + 链路 + 防御修复）**：破解点是"可读的硬编码 getter / 校验短路 / billing stub"时表现**优秀**（质量评审 Battery Guru 91 / Podcast Addict 82，零幻觉，给出可行的服务端复核 / Play Integrity / 签名校验等加固方案）。
 - **强噪音抗干扰定位**（如抖音 5274 文件、NP 20655 文件混淆树里精确锁定目标类）。
-- **枚举 / 格式常量提取 / native 边界诚实标注**（识别 Java→native 调用、如实说"逻辑在 .so、需 frida/动态"而不编造）。
+- **枚举 / 格式常量提取 / native 边界诚实标注**（当 Java→native 调用**就在眼前**时，会如实说"逻辑在 .so、需 frida/动态"而不编造）。⚠️ 但见下方"上限"里的 false-negative 警告：对需要 `unzip -l` 看 `lib/` 才能发现的 native/Unity 成分，它可能不探栈就断言"没有"。
 
 ### ⚠️ 上限与边界（做不到 / 需要外部介入）
-**1. 工具边界——只看得到 jadx 反编译出的 dex。** 对以下栈，业务逻辑**不在** dex 里，本 agent **无法深度分析**，只能"识别栈 + 说清逻辑在哪 + 路由到对的工具 + 不幻觉"：
+**1. 工具边界——只看得到 jadx 反编译出的 dex。** 对以下栈，业务逻辑**不在** dex 里，本 agent **无法深度分析**，理想情况下应"识别栈 + 说清逻辑在哪 + 路由到对的工具 + 不幻觉"：
   - Flutter（逻辑在 `libapp.so` Dart AOT，需 **blutter/reFlutter**）
   - Unity（IL2CPP / `global-metadata.dat`，需 **Il2CppDumper**）
   - React Native（`assets/index.android.bundle`，Hermes 字节码需专用反汇编）
   - Vue/WebApp（Cordova/Capacitor，逻辑在 `assets/www/*.js`，可直接读 JS）
   - 加固/壳（乐固/梆梆/爱加密/360：dex 运行时解密，静态只见壳加载器，需动态脱壳）
+
+  ⚠️ **实测警告（第 3 轮，重要）：上面这套"识别栈+诚实路由"目前并不可靠。** 无引导 35B 在栈识别题上常犯 **false-negative**——**不做 `unzip -l` 看 `lib/` 就自信断言目标"没有 native / 没有 Unity / 纯 Java"**。实例：Duolingo mod 谎称"无 libunity.so/无 IL2CPP"（实则 29MB libil2cpp.so + 20MB libunity.so + global-metadata.dat 俱在）；酷我 mod 断言"纯 Java 无 native"（实则 Hippy/Weex/DexVMP/腾讯加固/native 解密俱在）。这比"幻觉出不存在的机制"更隐蔽危险——一句自信的"这里没有 native/加固"会误导人放弃深挖。**在这项被下面规划的「主动栈探测前置」修复之前，不要轻信本 agent 关于"某栈不存在"的断言，务必自己 `unzip -l` 复核。**（规划中的修复：开局自动 `unzip -l` + 栈指纹 grep + 数 dex，把栈/lib 清单直接喂给模型；`--corpus` 案卷模式的 manifest 已先行做了这件事。见 `docs-resources/多Agent协作-强模型前置产物的续分析改进设计.md`）
 
 **2. 模型能力边界（本地 35B）**：
   - 强项：够得着题（≤4 跳、起点有高区分度锚点、破解点是可读硬编码）。

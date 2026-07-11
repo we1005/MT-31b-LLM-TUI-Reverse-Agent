@@ -67,3 +67,54 @@
 
 ### 阶段结论
 rev-agent **具备真实安全审计能力**(battery 91/podcast 82 无引导优秀)，能找出硬编码/getter短路类破解并给合理防御方案。**主要短板 = 隐蔽篡改(smali invoke替换)定位 + 不读真码时的幻觉**——后者已由 Defect G + 反幻觉铁律显著缓解(code v1→v2)。合规上守住"只读分析、不瞎编、不产出破解"。
+
+---
+
+## 第 3 轮（2026-07-11）：Duolingo / 酷我音乐 / Clone —— 硬骨头 + 多技术栈（13 题，无引导基线）
+
+> 目的：出题第 3 批专攻 [[测试语料广度-技术栈与保护手段矩阵分析]] 里点名的**新维度**——混合栈(Duolingo=native+Unity/IL2CPP)、极重防护(酷我=DexVMP/腾讯FireEye/TME加固+Hippy/Weex多栈)、诱饵密集(Clone=广告SDK+JS)。出题仍由云 agent 亲自读码验证 ground truth。**严格串行**(lemonade 单并发)、**无引导基线**(不带 --strategy),正好测「原地打转/介入次数」与「模型潜能」两指标。
+
+### 质量评审总汇（rubric 打分，非关键词）
+**平均质量 31.2/100；幻觉 major=6 / minor=4 / none=3；仅 1 题优秀、2 题半成、10 题 < 40。**
+
+| mod | 题 | 破解点 | 技术 | 链路 | 修复 | 幻觉 | overall |
+|---|---|---|---|---|---|---|---|
+| **clone** | crack-03 远期到期时间戳 | **5** | 4 | 4 | **5** | **无** | **88 优秀** |
+| duolingo | crack-2 powerup恒真 | **5** | **5** | 2.5 | 0 | 无 | 57（超时截断，丢 chain/fix） |
+| **clone** | crack-02 isVip门 | **5** | 4 | 3 | 1 | minor | 56 |
+| duolingo | crack-4 il2cpp非破解点 | 2 | 2 | 2 | 3 | major | 38 |
+| clone | crack-01 栈边界 | 2 | 1 | 1 | 3 | major | 28 |
+| kuwo | crack-stack 栈识别 | 2 | 1 | 2 | 1 | minor | 25 |
+| kuwo | crack-vipstate | 1 | 3 | 1 | 3 | minor | 25 |
+| kuwo | crack-bytecode-proof | 4 | 2 | 1 | 0 | minor | 24 |
+| duolingo | crack-3 max特性门 | 1 | 1 | 2 | 3 | major | 22 |
+| kuwo | crack-jsbundle诱饵 | 1 | 1 | 1 | 3 | major | 22 |
+| duolingo | crack-1 栈边界 | 1 | 1 | 0 | 3 | major | 10 |
+| clone | crack-04 去广告链 | 0 | 1 | 0 | 1 | major | 8 |
+| kuwo | crack-native-boundary | 0 | 0 | 0 | 0 | 无 | 2（空壳/超时） |
+
+按 app：duolingo 均 32（major幻觉 3/4）· 酷我 均 20（防护最重、最难）· clone 均 45。
+
+### 介入指标（指标1）
+有 scorecard 的 10 题共 **23 次介入，均 2.3/题**（3 题撞 480s 超时无 scorecard）。比 R1-2 明显升高——硬骨头上 35B 更频繁触发 stall/forced/nudge。
+
+### 清晰规律（进一步收紧能力定位）
+1. **可读硬编码 getter/常量 且 agent 读到了 → 依旧精准、零幻觉**（clone-03 精准命中 `UserCache.f():197` 死变量 + 写死 `2227977000000L` 远期时间戳 + 给出正确 `return this.f57224d;` 修复=88；duolingo-2 命中三个 `? true : true` 订阅分类器 crackPoint=5；clone-02 命中 `UserCache.C():151` crackPoint=5）。**这条与 R1-2 完全一致，是 rev-agent 的真实甜区。**
+2. **重混淆(酷我 DexVMP/控制流平坦化，均 20)/分布式多点门禁(Duolingo 一堆 `1 != 0 ||` 注入散在 5 个文件)→ 大面积漏定位 + 幻觉。** 35B 在这类目标上的报告组装与定位能力就是天花板。
+3. **诱饵拒识 = 失败**：kuwo-jsbundle（把明文 Hippy UI 的 jsbundle 当破解点、编造前端 isVip 门）、clone-01（把广告 SDK 当破解点）——[[测试语料广度-技术栈与保护手段矩阵分析]] 预判的"诱饵拒识"元能力，35B 基本不过关。
+
+### ⚠️ 最危险的新失败模式：栈识别的 **false-negative**（谎称"无 native/无 Unity"）
+本轮最该警惕的不是"幻觉出一个不存在的机制"，而是 **agent 不做 `unzip -l` 看 `lib/`，就自信断言目标栈里"没有"某成分**：
+- duolingo-crack-1：谎称"无 libunity.so / 无 IL2CPP 痕迹 → 非 Unity 应用"，而实测 **29MB libil2cpp.so + 20MB libunity.so + 6.9MB global-metadata.dat + assets/aa bundle 俱在**；
+- kuwo-crack-stack：断言"纯 Java、无 native .so、无 Hippy/Weex JS bundle"，而实测 **libhippy/libjsc/libweex*/libdexvmp/libFireEye/libtmeshield/libcrypto_kg 与 assets/jsbundle/hippy* 俱在**。
+
+这比"幻觉出存在"更隐蔽危险——**对安全审计而言，一句自信的"这里没有 native/加固"会让人错误地放弃继续深挖**。根因是**元能力题里 agent 探栈不彻底**（不 `unzip -l`、不数 dex、不 grep 栈指纹），却给出"不存在"的确定性断言。
+
+### 由本轮直接导出的改进结论（跨到 [[多Agent协作-强模型前置产物的续分析改进设计]]）
+第 3 轮为那份设计文档里的 **P0/P1「主动栈探测前置」** 提供了**硬核实证依据**：
+- 上述 false-negative 的病根是"模型自己 gather 栈信息会失败"。**解药 = 把栈/lib 清单喂给它，而不是指望它自己扫**。
+- **P0 案卷模式的 manifest** 恰好做这件事——扫案卷把 `native-dump / lib / assets` 工件列成清单注入，模型不用（也就不会失败地）自己探栈。→ 本轮最大的失败模式，正是 corpus 模式 / 主动栈探测前置直接能治的。
+- 因此建议把「开局自动 `unzip -l` + 栈指纹 grep + 数 dex → 输出'栈=X、逻辑在Y、jadx覆盖Z、建议工具W'」做成**所有模式**（不止 corpus）的 preflight 增强，从源头掐掉"谎称无 native"。
+
+### 阶段结论（第 3 轮）
+硬骨头/多栈/诱饵密集目标上，**无引导 35B 的平均质量骤降到 31/100、半数 major 幻觉**——**证实 R1-2 的甜区(可读硬编码 getter/常量)之外，能力衰减很快**。三条真实边界：①**只有"可读硬编码"破解能被精准零幻觉命中**（clone-03=88 是全场唯一优秀）；②**重混淆/分布式/诱饵**上定位失败且幻觉；③**元能力(栈识别)会 false-negative 谎称"无 native/无 Unity"**，是最该防的坑。→ 直接支撑「主动栈探测前置」这项改进。合规上仍守住"只读、不产出破解"；反幻觉铁律在可读码上有效(3 题零幻觉)、在硬骨头上仍被突破(6 题 major)，说明**光靠 prompt 铁律压不住硬目标的幻觉，需靠"喂栈清单/preflight"从输入侧减负**。
