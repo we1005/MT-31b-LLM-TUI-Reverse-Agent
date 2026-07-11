@@ -203,7 +203,8 @@ shell 审批分级：`auto`（`aapt2 dump`/`apkid`/`jadx -d`/`grep`/`strings`…
   - Vue/WebApp（Cordova/Capacitor，逻辑在 `assets/www/*.js`，可直接读 JS）
   - 加固/壳（乐固/梆梆/爱加密/360：dex 运行时解密，静态只见壳加载器，需动态脱壳）
 
-  ⚠️ **实测警告（第 3 轮，重要）：上面这套"识别栈+诚实路由"目前并不可靠。** 无引导 35B 在栈识别题上常犯 **false-negative**——**不做 `unzip -l` 看 `lib/` 就自信断言目标"没有 native / 没有 Unity / 纯 Java"**。实例：Duolingo mod 谎称"无 libunity.so/无 IL2CPP"（实则 29MB libil2cpp.so + 20MB libunity.so + global-metadata.dat 俱在）；酷我 mod 断言"纯 Java 无 native"（实则 Hippy/Weex/DexVMP/腾讯加固/native 解密俱在）。这比"幻觉出不存在的机制"更隐蔽危险——一句自信的"这里没有 native/加固"会误导人放弃深挖。**在这项被下面规划的「主动栈探测前置」修复之前，不要轻信本 agent 关于"某栈不存在"的断言，务必自己 `unzip -l` 复核。**（规划中的修复：开局自动 `unzip -l` + 栈指纹 grep + 数 dex，把栈/lib 清单直接喂给模型；`--corpus` 案卷模式的 manifest 已先行做了这件事。见 `docs-resources/多Agent协作-强模型前置产物的续分析改进设计.md`）
+  ⚠️ **第 3 轮实测暴露的失败模式 + 已实现的修复（P1 主动栈探测前置）：** 无引导 35B 曾在栈识别题上常犯 **false-negative**——**不做 `unzip -l` 看 `lib/` 就自信断言目标"没有 native / 没有 Unity / 纯 Java"**。实例：Duolingo mod 谎称"无 libunity.so/无 IL2CPP"（实则 29MB libil2cpp.so + 20MB libunity.so + global-metadata.dat 俱在）；酷我 mod 断言"纯 Java 无 native"（实则 Hippy/Weex/DexVMP/腾讯加固/native 解密俱在）。这比"幻觉出不存在的机制"更隐蔽危险。
+  ✅ **已实现修复（`src/stack-probe.ts`）**：开局**确定性地**替模型探栈——自动定位原始 APK → `unzip -l` 看 `lib/*.so` 与 `assets/` 签名（Unity/Flutter/RN/Hippy/WebApp/加固）+ 数 dex → 把**权威栈报告**注入首条消息（"检测到 Unity(IL2CPP)、21 个 .so…；这些逻辑不在 jadx sources/，严禁断言无 X"）；定位不到 APK（只有 sources/）则如实说"看不到 lib/，无法判栈，切勿断言无 X"。A/B 实测：上面 Duolingo 那道题从 **10 分（幻觉"无 Unity"）→ 正确承认 Unity IL2CPP 存在 + 判定会员逻辑在 dex、Unity 只承载游戏内容 + 推荐 Il2CppDumper，零幻觉**。仍建议：对高价值判断自己 `unzip -l` 复核。（见 `docs-resources/安全审计-篡改APK破解审计.md` 第 3 轮 + `多Agent协作-强模型前置产物的续分析改进设计.md`）
 
 **2. 模型能力边界（本地 35B）**：
   - 强项：够得着题（≤4 跳、起点有高区分度锚点、破解点是可读硬编码）。

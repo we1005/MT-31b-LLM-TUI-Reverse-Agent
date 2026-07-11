@@ -9,6 +9,7 @@ import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
 import { preflightSourceTree } from '../preflight.ts';
 import { buildCorpusProtocol, buildManifestText, scanCorpus } from '../corpus.ts';
+import { probeStack } from '../stack-probe.ts';
 import { loadSystemPrompt } from '../prompts.ts';
 import { buildResumeContext } from '../resume.ts';
 import { ToolRegistry } from '../tools/index.ts';
@@ -74,6 +75,11 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
     }
   }
 
+  // P1 主动栈探测前置：确定性地替模型探栈（定位原始 APK → unzip -l 看 lib/assets 签名），
+  // 把权威栈报告注入首条消息，从源头掐掉 Round-3 头号失败模式——不 unzip 就断言"无 native/纯 Java"。
+  // 仅对源码级/审计/corpus 任务生效；续传模式跳过（笔记里已含探索前提）。
+  const stackReport = opts.resume ? undefined : probeStack({ workdir: opts.workdir, corpus: opts.corpus, task: opts.task });
+
   // 续传：先构建续传上下文（读笔记 + 校验），失败直接退出，不静默退化成新任务。
   let resumeMessage: string | undefined;
   if (opts.resume) {
@@ -115,6 +121,13 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
         `budget=${budget.max}\n`,
     ),
   );
+  if (stackReport) {
+    const s = stackReport.dataGap
+      ? '未定位到 APK/看不到 lib → 诚实"无法判栈"(防 false-negative)'
+      : `APK=${stackReport.apkPath ? stackReport.apkPath.split('/').pop() : '?'} dex=${stackReport.dexCount} native=${stackReport.hasNativeSo ? 'Y' : 'N'}` +
+        (stackReport.hits.length ? ` 非dex栈:[${stackReport.hits.map((h) => h.stack).join(', ')}]` : ' 未见非dex栈');
+    process.stderr.write(cyan(`[rev-agent] 栈探测：`) + dim(`${s}\n`));
+  }
   if (corpusManifest) {
     const c = corpusManifest.counts;
     process.stderr.write(
@@ -195,6 +208,8 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
   // 续传时首条消息是注入了笔记全文的续传上下文；否则是用户原始任务。
   // 关键修复：chdir 只让工具的相对路径生效，但 LLM 不知道自己在哪个目录 → 会幻觉路径满世界找。
   // 非续传时把「当前工作目录」显式前缀进任务，让 agent 直接从这里开始，不要去猜/搜。
+  // P1 栈报告块：注入所有非续传 firstMessage（权威探栈结论，防 false-negative）。
+  const stackBlock = stackReport ? `\n\n${stackReport.verdict}` : '';
   let firstMessage = resumeMessage ?? opts.task;
   if (!resumeMessage) {
     const cwd = process.cwd();
@@ -213,11 +228,11 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
       }
       firstMessage =
         `【你的当前工作目录 = 案卷根（所有相对路径基于此，直接用，不要去别处搜索）】\n${cwd}\n\n` +
-        `${buildManifestText(corpusManifest)}${indexBlock}\n\n` +
+        `${buildManifestText(corpusManifest)}${indexBlock}${stackBlock}\n\n` +
         `【任务】\n${opts.task}`;
     } else {
       firstMessage =
-        `【你的当前工作目录（所有相对路径基于此，反编译源码就在这里，直接用，不要去别处搜索）】\n${cwd}\n\n` +
+        `【你的当前工作目录（所有相对路径基于此，反编译源码就在这里，直接用，不要去别处搜索）】\n${cwd}${stackBlock}\n\n` +
         `【任务】\n${opts.task}`;
     }
   }

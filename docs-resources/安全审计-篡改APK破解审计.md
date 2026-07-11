@@ -116,5 +116,11 @@ rev-agent **具备真实安全审计能力**(battery 91/podcast 82 无引导优�
 - **P0 案卷模式的 manifest** 恰好做这件事——扫案卷把 `native-dump / lib / assets` 工件列成清单注入，模型不用（也就不会失败地）自己探栈。→ 本轮最大的失败模式，正是 corpus 模式 / 主动栈探测前置直接能治的。
 - 因此建议把「开局自动 `unzip -l` + 栈指纹 grep + 数 dex → 输出'栈=X、逻辑在Y、jadx覆盖Z、建议工具W'」做成**所有模式**（不止 corpus）的 preflight 增强，从源头掐掉"谎称无 native"。
 
+#### ✅ P1「主动栈探测前置」已落地（`src/stack-probe.ts`）
+- 实现：所有 `--once`/`--corpus` 的源码级/栈识别/审计任务，开局**确定性**定位原始 APK → `unzip -l` 看 `lib/*.so`+`assets/` 签名（Unity/Flutter/RN/Hippy/Weex/WebApp/360-梆梆-阿里-腾讯加固）+ 数 dex → 权威栈报告注入首条消息；定位不到 APK（只有 sources/）则转"诚实无法判栈、切勿断言无 X"模式。
+- 真 APK 单测：Duolingo→Unity(IL2CPP)+21so、酷我→Hippy+Weex+DEX-VMP+阿里聚安全+136so、Clone→native+26so、Battery→近乎纯 native。全部命中 ground truth。
+- **A/B 实测（duolingo-crack-1 同题）：从 R3 的 10 分（major 幻觉"无 Unity/无 libunity.so"）→ 正确承认 Unity IL2CPP 存在 + 判定会员逻辑在 dex（`com/duolingo/plus/`）、Unity 只承载游戏内容(Rive/Chess) + 诚实 jadx 可见性表 + 推荐 Il2CppDumper/frida，零幻觉（估 ~80 分）。** 头号失败模式被从输入侧掐掉。
+- 局限：探测器只做"栈存在性"权威判定；具体破解点定位/是否幻觉仍取决于模型读码（甜区规律不变）。
+
 ### 阶段结论（第 3 轮）
 硬骨头/多栈/诱饵密集目标上，**无引导 35B 的平均质量骤降到 31/100、半数 major 幻觉**——**证实 R1-2 的甜区(可读硬编码 getter/常量)之外，能力衰减很快**。三条真实边界：①**只有"可读硬编码"破解能被精准零幻觉命中**（clone-03=88 是全场唯一优秀）；②**重混淆/分布式/诱饵**上定位失败且幻觉；③**元能力(栈识别)会 false-negative 谎称"无 native/无 Unity"**，是最该防的坑。→ 直接支撑「主动栈探测前置」这项改进。合规上仍守住"只读、不产出破解"；反幻觉铁律在可读码上有效(3 题零幻觉)、在硬骨头上仍被突破(6 题 major)，说明**光靠 prompt 铁律压不住硬目标的幻觉，需靠"喂栈清单/preflight"从输入侧减负**。
