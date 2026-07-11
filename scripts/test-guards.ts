@@ -260,5 +260,35 @@ led2.observeToolResult('read_file', { path: '/a/Z.java', start: 1, lines: 50 }, 
 led2.markEvicted('/a/Y.java');
 ok('死锁e: 只驱逐目标path，其它path不受影响', led2.hasRead('/a/Y.java', 1, 50) === false && led2.hasRead('/a/Z.java', 1, 50) === true);
 
+// ---- 测 2b-1 零-LLM 边派生（错边零容忍）----
+function edgeLedger(content: string, cand = 'checkVip'): any {
+  const l = new Ledger();
+  l.observeToolResult('grep', { pattern: cand, path: '/x' }, { hits: ['a.java:1'] });
+  l.observeToolResult('read_file', { path: '/a/Foo.java', start: 100 }, { content, range: { start: 100, end: 100 + content.split('\n').length - 1 } });
+  return l.toJSON().hops;
+}
+// 正例：干净具名方法调用 grep 过的符号 → 产边
+const h1 = edgeLedger('public boolean isPremium() {\n  return checkVip();\n}');
+ok('边派生: 干净正例产边(isPremium→checkVip)', h1.some((h: any) => h.from === 'isPremium' && h.to === 'checkVip' && h.corroborated === true));
+// 负例1：调用在 lambda 体内 → 跨 lambda 边界，不产(错)边
+const h2 = edgeLedger('void setup() {\n  btn.setOnClick(v -> {\n    checkVip();\n  });\n}');
+ok('边派生: lambda 内调用不产错边(宁缺毋滥)', !h2.some((h: any) => h.to === 'checkVip'));
+// 负例2：外围是合成方法 lambda$xxx → 不产边
+const h3 = edgeLedger('private void lambda$onCreate$0() {\n  checkVip();\n}');
+ok('边派生: 合成方法(lambda$)不产边', !h3.some((h: any) => h.to === 'checkVip'));
+// 负例3：读到的是 callee 自身声明行 → 不产自边
+const h4 = edgeLedger('public boolean checkVip() {\n  return this.k;\n}');
+ok('边派生: 自声明不产自边', !h4.some((h: any) => h.from === 'checkVip' && h.to === 'checkVip'));
+// 负例4：grep 的是短语/正则(非单标识符) → 不作候选
+const lx = new Ledger();
+lx.observeToolResult('grep', { pattern: 'return true', path: '/x' }, { hits: ['a'] });
+lx.observeToolResult('read_file', { path: '/a/Foo.java', start: 1 }, { content: 'boolean f() {\n return true();\n}', range: { start: 1, end: 3 } });
+ok('边派生: 非单标识符 grep 不作候选(不产边)', lx.toJSON().hops.length === 0);
+// 消融开关：REV_AGENT_NO_EDGE_DERIVE=1 时不产边
+process.env['REV_AGENT_NO_EDGE_DERIVE'] = '1';
+const h5 = edgeLedger('public boolean isPremium() {\n  return checkVip();\n}');
+ok('边派生: 消融开关关闭时不产边', h5.length === 0);
+delete process.env['REV_AGENT_NO_EDGE_DERIVE'];
+
 console.log(`\n结果: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

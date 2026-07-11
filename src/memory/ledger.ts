@@ -71,6 +71,11 @@ export class Ledger {
       const start = typeof args.start === 'number' ? args.start : 1;
       const total = result?.range ? result.range.end : start + (typeof args.lines === 'number' ? args.lines : 200) - 1;
       this.addRead(args.path, start, total);
+      // 2b-1 零-LLM 调用边派生：从「已 grep 的符号 + 本次 read 内容」确定性派生 caller→callee 边。
+      // 消融开关 REV_AGENT_NO_EDGE_DERIVE=1 关闭（默认开）。错边零容忍——见 deriveEdges 的保守判据。
+      if (!process.env['REV_AGENT_NO_EDGE_DERIVE'] && typeof result?.content === 'string') {
+        this.deriveEdges(args.path, start, result.content);
+      }
     } else if (name === 'grep' && typeof args.pattern === 'string' && typeof args.path === 'string') {
       const hitCount = Array.isArray(result?.hits) ? result.hits.length : 0;
       this.greps.push({ pattern: args.pattern, path: args.path, hitCount });
@@ -87,6 +92,59 @@ export class Ledger {
       this.reads.push(e);
     }
     e.ranges.push({ start, end });
+  }
+
+  // 干净的具名方法声明行：`...修饰符... 返回类型 名字(参数) {?`，行尾必须是 `{` 或结束（排除以 `;` 结尾的语句/字段/调用）。
+  private static readonly SIG =
+    /^\s*(?:@[\w$]+(?:\([^)]*\))?\s*)*(?:public|private|protected|static|final|synchronized|native|abstract|default|\s)*[\w$<>[\].,?\s]+\s+([\w$]+)\s*\([^;{]*\)\s*(?:throws[\w$.,\s]+)?\{?\s*$/;
+  private static readonly BAD_NAME = /^(?:if|for|while|switch|catch|synchronized|return|new|lambda\$|access\$)/;
+  private static esc(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * 2b-1 零-LLM 调用边派生（错边零容忍）。从「模型已 grep 的符号(callee 候选) + 本次 read 内容」
+   * 确定性派生 caller→callee 边：内容里出现 `候选(` 调用点 → 向上找**干净具名外围方法签名**作 caller。
+   * 保守判据（宁缺毋滥）：候选=grep 过的单个干净标识符(≥3 字符)；必须找到具名签名且非
+   * lambda/合成/控制关键字；call 与签名之间跨 lambda `->` 或匿名类 `new X(){` 边界→归属不确定，跳过；
+   * 向上扫描 ≤120 行。消融 REV_AGENT_NO_EDGE_DERIVE=1 关闭。
+   */
+  private deriveEdges(path: string, startLine: number, content: string): void {
+    if (!content || this.greps.length === 0) return;
+    const candidates = [...new Set(this.greps.map((g) => g.pattern))].filter((p) => /^[A-Za-z_$][\w$]{2,}$/.test(p));
+    if (candidates.length === 0) return;
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      for (const cand of candidates) {
+        if (!new RegExp(`\\b${Ledger.esc(cand)}\\s*\\(`).test(line)) continue;
+        const encl = this.findEnclosingMethod(lines, i);
+        if (!encl || encl === cand) continue;
+        this.addDerivedHop(encl, cand, `${path.split('/').pop()}:${startLine + i}`);
+      }
+    }
+  }
+
+  /** 向上(≤120 行)找最近干净具名外围方法名；遇 lambda/匿名类边界或找不到 → 返回 null(不猜)。 */
+  private findEnclosingMethod(lines: string[], callIdx: number): string | null {
+    const stop = Math.max(0, callIdx - 120);
+    for (let j = callIdx; j >= stop; j--) {
+      const l = lines[j]!;
+      if (j < callIdx && (/->\s*\{?/.test(l) || /\bnew\s+[\w$.]+\s*\([^)]*\)\s*\{/.test(l))) return null; // 跨 lambda/匿名类 → 不确定
+      const m = l.match(Ledger.SIG);
+      if (m) {
+        const name = m[1]!;
+        return Ledger.BAD_NAME.test(name) ? null : name; // 合成/控制关键字 → 不产边
+      }
+    }
+    return null;
+  }
+
+  /** 加一条派生边(corroborated=true,源自实读内容);按语义键去重。 */
+  private addDerivedHop(from: string, to: string, evidence: string): void {
+    const key = `${hopKeyPart(from)}->${hopKeyPart(to)}`;
+    if (this.hops.some((h) => `${hopKeyPart(h.from)}->${hopKeyPart(h.to)}` === key)) return;
+    this.hops.push({ raw: `${from} → ${to} | ${evidence} (派生)`, from, to, evidence, corroborated: true });
   }
 
   /**
