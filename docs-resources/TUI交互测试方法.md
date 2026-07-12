@@ -5,7 +5,11 @@
 > workflow agent 声称"L2a testRender ALL PASS(含帧内容断言)"。**我实测发现这不准确**,诚实修正:
 > - ✅ **交互层可测且正确(5/5 过)**:注入按键 → 真实 `<App>` → `onSubmit` 触发(**推翻"测不了"**);含 CJK/特殊字符的文本经 input→onSubmit **字节完整**(无乱码/无缺失);工具审批 y→true、n→false 两分支都正确 resolve(稳定,带超时护栏不 hang)。
 > - ✅ **testRender + CJK rasterize 能力正常**:trivial `<text>HELLO世界</text>` 正确渲染、中文无乱码;`useTerminalDimensions()` 在测试渲染器正确返回 100(非 0)。
-> - ❌ **但 `captureCharFrame()` 对完整 `<App>` 返回空白字形**(headless 与 detached-tmux 都空白)。根因**不是** dims(=100)、**不是** App 逻辑(handler 全工作)、**不是** CJK——是 OpenTUI 0.1.102 在 **bun 无头/detached 自动化捕获**下的 nuance;**用户真实交互终端可正常渲染**(已确认在用)。
+> - ⛔→✅ **【重大更正】早先我判"整 `<App>` 空白 = OpenTUI 无头捕获 nuance"是错的——它其实是两个真实布局 bug,已定位并修复(commit b2884f1 + 392c369)。** 用户坚持"把白屏 fix 掉"是对的。
+>   - **Bug1 白屏**:App 外层 `<box width={width} flexGrow={1}>` 缺 `height` 约束;根非 flex 容器,flexGrow 约束不住 → box 长到内容高(23>屏20),`MessageList<scrollbox flexGrow=1>` 吃满整屏 → 输入/预算/笔记被挤出屏 → 全空(初始空消息时连消息都没=纯白屏)。**真 tmux + script 实测:修前仅渲染一个 `›`(3191 字节)。** 修:`useTerminalDimensions` 取 `height` + 外层 box `height={height}`。
+>   - **Bug2 笔记行重叠**:贪婪 scrollbox 把可收缩(默认 flexShrink=1)的底部区压扁 → NotesPreview 多行重叠(header 压 line1/丢行)。修:NotesPreview/BudgetBar/输入行 加 `flexShrink={0}`。
+>   - **修后真 tmux 实测**:输入占位符/预算条/笔记框(header+4 行各占一行零重叠)全渲染、CJK 正确。`scripts/tui-render.test.tsx` 加 4 条渲染回归(整App非空白+输入/预算可见+笔记不重叠)锁住,11/11 过。
+>   - 教训:**headless testRender 的整 App 空白不是"捕获 nuance",是真 bug 信号——individual 组件能渲染而组合体空白=布局塌缩,该查不该甩锅给环境。**
 > - **结论**:像素级渲染正确性以**真实交互终端**为准(可用);**内容缺失/乱码在数据层已被 `tui-render.test.tsx`(输入)+ 几十次 `--once` 实跑(助手输出,均为连贯中文、零替换符)双重覆盖**。自动化像素 diff 完整 App 在本环境不可靠,故 L2a 定位为**交互/数据正确性测试**而非像素测试。
 
 # 如何程序化测试 rev-agent 的 TUI 交互对话
