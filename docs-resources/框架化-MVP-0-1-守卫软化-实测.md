@@ -44,10 +44,26 @@
 
 **结论**：MVP-1.1 后简单题**不再退化（速度追平 + 更完整 + 零强制干预）**，深多跳仍受益于软化守卫。> ⚠️ 单跑有 temp>0 方差，应多 seed 复测；但方向明确。
 
-## 4. 诚实裁决（MVP-0/1 + 1.1 完成）
+## 3.3 ⭐ 多 seed 复测（n=3，治单跑方差）—— 最可信的结论
+
+单跑会骗人（本项目铁律）。用 `_scratch/pi-bench/batch-ab.sh` 跑 3 seed × {count,signal} × {EasyNotes,medium} = 12 格，取中位数：
+
+| 题型 | count（3 seed 中位） | signal（3 seed 中位） |
+|---|---|---|
+| **EasyNotes（难·有锚点深多跳）** | gt_hit **2/3**、forced **3/3**、hops 0、dur 344s | gt_hit **3/3**、forced **0/3**、hops **6**、dur **276s** |
+| **medium（普通·定点定位）** | gt_hit 3/3、dur **136s** | gt_hit 3/3、dur 212s（~1.5×） |
+
+**诚实的过程修正（重要）**：批处理跑到一半（6 格）时我曾判断"count/signal 差不多、那次 count 失败是离群"，一度想收回 signal 的收益。**跑满 3 seed 后被推翻**：EasyNotes 的 count **seed3 又失败了**（reads=0、gt_hit=0、被 forced-finish 掐停）——**count 在这类深多跳题上约 1/3 概率栽在"没读码就强制收尾"**，不是一次性坏运气。signal 3 seed **0 次 force-cut、0 次失败、hops 更深、中位耗时反而更短**。
+
+**结论（多 seed 支撑）**：
+- **难题（深多跳）signal 净胜**：更可靠（3/3 vs 2/3）、更深（hops 6 vs 0）、不再过早 force-cut（0/3 vs 3/3）、中位还更快。这正是软化守卫的目标场景。
+- **普通题（定点）signal 略慢 ~1.5×**（212 vs 136 中位），正确性持平（都 3/3）。MVP-1.1 把 v1 单跑的 3× 压到 ~1.5×，但没完全消。
+- ⚠️ n=3、temp>0，失败率"1/3"置信区间宽；方向一致但绝对数需更多 seed 收窄。原始 CSV：`_scratch/pi-bench/ab/results.csv`。
+
+## 4. 诚实裁决（MVP-0/1 + 1.1 完成，多 seed 复核）
 - **深多跳（难题）**：signal 修复了 count 的"过早掐停→浅答判错"（EasyNotes correctness 错→对，reads 0→2，命中真破解点）。**核心目标达成。**
 - **定点定位（普通题）**：MVP-1.1 后**速度追回 count（112.9s）、正确性更完整（3/3 含 C11960）、零强制干预**——不退化。
-- **一句话**：signal-gated 守卫 + reads-based 收敛提示 = **难题肯深读跟到底、简单题够了就收**，两头都对。这正是"软化强制干预、把'是否继续深挖'的裁量还给 agent、框架只在资源上限兜底"的落地验证。
+- **一句话（多 seed 校准后）**：signal-gated 守卫在**难题（深多跳）净胜**（+可靠 +深度 −force-cut，中位更快），在**普通题略付 ~1.5× 速度**（正确性不变）。这是"软化强制干预、把'是否继续深挖'的裁量还给 agent、框架只在资源上限兜底"的落地验证——**值得合 main**（signal 设默认、`REV_GUARD_MODE=count` 保留回退），代价是接受简单题的少量速度损失（后续可再调收敛提示阈值收窄）。
 - **方法论保留**：单跑 A/B 有 temp>0 噪声（methodology 铁律），墙钟数含方差；但 reads/steps/命中的行为差异 + EasyNotes 机制对错是真实非纯噪声。后续多 seed 复测更稳。
 
 ## 5. 下一步
