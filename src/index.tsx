@@ -28,6 +28,7 @@ const program = new Command()
   .option('--budget <tokens>', 'token 预算上限', String(80_000))
   .option('--notes <path>', '工作笔记路径', '/tmp/work-notes.md')
   .option('--mcp-server', '进入 MCP server 模式（stdio transport，给 Claude Code/Cursor 反向调用）')
+  .option('--web [port]', '进入 Web 前端模式（浏览器交互，Bun.serve WebSocket，默认端口 5178）')
   .option('--allow-write', 'MCP server 模式下放行 write 类工具（默认拒）')
   .option('--ask-when-stuck', '原地打转时不强制猜答案，改为输出困境报告求思路（TUI 粘贴续跑 / --once 输出报告并 exit=3）')
   .option('--strategy <text>', '（配合 --once）注入用户/更强模型给的分析思路，让 agent 按此重新分析（承接上一轮 exit=3 的困境报告）')
@@ -45,6 +46,25 @@ if (opts['mcpServer']) {
   const code = await runMcpServer({
     workdir: opts['workdir'] as string | undefined,
     allowWrite: !!opts['allowWrite'],
+  });
+  process.exit(code);
+}
+
+// Web 前端模式：起 HTTP+WS server 永不返回，直到 SIGTERM/SIGINT
+if (opts['web']) {
+  const { runWebServer } = await import('./runtime/run-web-server.ts');
+  const port = typeof opts['web'] === 'string' ? Number(opts['web']) : 5178;
+  const code = await runWebServer({
+    backend: opts['backend'] as never,
+    model: opts['model'] as string | undefined,
+    baseURL: opts['baseUrl'] as string | undefined,
+    apiKey: opts['apiKey'] as string | undefined,
+    verbose: !!opts['verbose'],
+    autoApprove: !!opts['autoApprove'],
+    workdir: opts['workdir'] as string | undefined,
+    budget: Number(opts['budget']),
+    notesPath: opts['notes'] as string,
+    port: Number.isFinite(port) ? port : 5178,
   });
   process.exit(code);
 }
