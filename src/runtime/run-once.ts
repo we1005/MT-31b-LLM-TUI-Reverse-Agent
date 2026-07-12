@@ -11,6 +11,7 @@ import { createLLM } from '../llm.ts';
 import { preflightSourceTree } from '../preflight.ts';
 import { buildCorpusProtocol, buildManifestText, scanCorpus } from '../corpus.ts';
 import { probeStack } from '../stack-probe.ts';
+import { learnPlaybookFromLedger, loadLearned, matchPlaybooks, renderPlaybookBlock, saveLearned } from '../playbook.ts';
 import { loadSystemPrompt } from '../prompts.ts';
 import { buildResumeContext } from '../resume.ts';
 import { builtinTools, ToolRegistry } from '../tools/index.ts';
@@ -248,6 +249,15 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
         `【你的当前工作目录（所有相对路径基于此，反编译源码就在这里，直接用，不要去别处搜索）】\n${cwd}${stackBlock}\n\n` +
         `【任务】\n${opts.task}`;
     }
+    // MVP-3 栈感知主动注入 playbook（**只作 context·可无视**，不作 control）：按 stack-probe 确凿命中的
+    // 栈 + 任务关键词，把"做法/套路"拼进首条消息末尾。系统主动推（解"弱模型不会自查知识库"悖论），
+    // 但明确标"参考·可无视"，模型可不理——绝不"检测到 X 就强制执行 Y"。
+    const pbs = matchPlaybooks(stackReport, opts.task);
+    const pbBlock = renderPlaybookBlock(pbs);
+    if (pbBlock) {
+      firstMessage += `\n\n${pbBlock}`;
+      process.stderr.write(dim(`[rev-agent] 注入 ${pbs.length} 条参考 playbook：${pbs.map((p) => p.id).join(', ')}\n`));
+    }
   }
   // --strategy：把用户/更强模型的思路前置注入（最高优先级），配合上一轮 exit=3 困境报告，按思路重新分析。
   if (opts.strategy?.trim()) {
@@ -275,6 +285,19 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
           ),
       );
       return 3;
+    }
+    // MVP-4 playbook 自动生长（opt-in REV_LEARN_PLAYBOOK=1，默认关避免意外写 ~/.config）：
+    // 从本次**解出**的 ledger 归纳一条 learned playbook 落盘，供将来同栈任务主动注入（MVP-3）。
+    if (process.env['REV_LEARN_PLAYBOOK'] === '1') {
+      const pb = learnPlaybookFromLedger(agent.ledgerState(), stackReport);
+      if (pb) {
+        const learned = loadLearned();
+        const dup = learned.some((x) => JSON.stringify(x.triggerStacks) === JSON.stringify(pb.triggerStacks) && x.title === pb.title);
+        if (!dup) {
+          saveLearned([...learned, pb]);
+          process.stderr.write(dim(`[rev-agent] 自动归纳 learned playbook：${pb.id}\n`));
+        }
+      }
     }
     process.stderr.write(green(`\n✓ done (steps=${agent.step} budget=${budget.used}/${budget.max})\n`));
     return 0;
