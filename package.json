@@ -15,7 +15,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check src",
     "format": "biome format --write src",
-    "demo": "bash scripts/demo.sh"
+    "demo": "bash scripts/demo.sh",
+    "test": "bun scripts/test-guards.ts && bun scripts/test-redact.ts && bun scripts/test-advisor-agent.ts",
+    "test:redact": "bun scripts/test-redact.ts",
+    "test:advisor": "bun scripts/test-advisor-local.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.81",

@@ -33,6 +33,22 @@ export interface Config {
   workdir?: string;
   /** 自动审批所有工具（危险，仅 --once 默认开） */
   autoApprove: boolean;
+
+  // —— 混合后端：云端顾问 + 脱敏防火墙（总开关默认关；见 advisor.ts / redact.ts）——
+  /** 总开关：卡住时脱敏后问云端顾问拿思路（默认 false，纯本地不出网） */
+  consultCloud?: boolean;
+  /** 顾问后端：claude/openai/volcengine 或任意 OpenAI 兼容（local/lemonade 也可，串行不外泄，用于自测） */
+  advisorBackend?: Backend;
+  /** 顾问 model id（按后端默认） */
+  advisorModel?: string;
+  /** 顾问 baseURL（advisorBackend=local 时必填） */
+  advisorBaseURL?: string;
+  /** 顾问 API key（云端后端用；缺省从 env） */
+  advisorApiKey?: string;
+  /** 脱敏档 0/1/2，默认 2（最严） */
+  redactLevel?: number;
+  /** 顾问调用次数上限（防"求助→重置→又打转→再求助"无限循环），默认 3 */
+  maxConsults?: number;
 }
 
 export const DEFAULT_CONFIG: Config = {

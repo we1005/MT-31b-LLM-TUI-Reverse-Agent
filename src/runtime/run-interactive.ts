@@ -6,6 +6,7 @@ import { createCliRenderer } from '@opentui/core';
 import { createRoot } from '@opentui/react';
 import { createElement } from 'react';
 import { Agent } from '../agent.ts';
+import { type AdvisorWiring, wireAdvisor } from '../advisor.ts';
 import { Budget } from '../budget.ts';
 import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
@@ -14,7 +15,7 @@ import { buildResumeContext } from '../resume.ts';
 import { builtinTools, ToolRegistry } from '../tools/index.ts';
 import { App, createApprovalChannel, createStrategyChannel } from '../ui/App.tsx';
 
-export interface RunInteractiveOpts {
+export interface RunInteractiveOpts extends AdvisorWiring {
   /** 从工作笔记续传：用 §3 续传 prompt + 预注入笔记并自动起跑首轮 */
   resume?: boolean;
   backend: Backend;
@@ -58,6 +59,17 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
   const approvalChannel = createApprovalChannel();
   const strategyChannel = createStrategyChannel();
 
+  // 混合后端：--consult-cloud 时用云端顾问作 askStrategy（优先于 TUI 人工粘贴通道）；getLedger 前向引用。
+  let agentRef: Agent;
+  const advisor = wireAdvisor(
+    opts,
+    () => agentRef.ledgerState(),
+    (m) => process.stderr.write(`[顾问] ${m}\n`),
+  );
+  // 顾问优先；否则回退 --ask-when-stuck 的 TUI 人工粘贴通道。
+  const askStrategy =
+    advisor.askStrategy ?? (opts.askWhenStuck ? (report: string) => strategyChannel.ask(report) : undefined);
+
   const agent = new Agent({
     model,
     tools,
@@ -67,10 +79,12 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
       if (opts.autoApprove) return true;
       return approvalChannel.ask(call.name, call.args);
     },
-    // --ask-when-stuck：卡住时通过 TUI 求助通道展示困境报告、等用户粘贴思路（返回 null=放弃→回退强制收尾）。
-    escalateWhenStuck: !!opts.askWhenStuck,
-    askStrategy: opts.askWhenStuck ? (report) => strategyChannel.ask(report) : undefined,
+    // 卡住求助：云端顾问 或 --ask-when-stuck 的 TUI 人工粘贴通道（返回 null=放弃→回退强制收尾）。
+    escalateWhenStuck: advisor.enabled || !!opts.askWhenStuck,
+    maxEscalations: advisor.enabled ? advisor.maxEscalations : 3,
+    ...(askStrategy ? { askStrategy } : {}),
   });
+  agentRef = agent;
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,

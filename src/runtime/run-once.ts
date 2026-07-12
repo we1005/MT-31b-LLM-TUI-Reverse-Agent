@@ -4,6 +4,7 @@
  */
 import { join } from 'node:path';
 import { Agent } from '../agent.ts';
+import { type AdvisorWiring, wireAdvisor } from '../advisor.ts';
 import { Budget } from '../budget.ts';
 import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
@@ -14,7 +15,7 @@ import { loadSystemPrompt } from '../prompts.ts';
 import { buildResumeContext } from '../resume.ts';
 import { builtinTools, ToolRegistry } from '../tools/index.ts';
 
-export interface RunOnceOpts {
+export interface RunOnceOpts extends AdvisorWiring {
   task: string;
   /** 从工作笔记续传：用 §3 续传 prompt + 注入笔记为首条消息 */
   resume?: boolean;
@@ -142,14 +143,25 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
     );
   }
 
+  // 混合后端：--consult-cloud 时卡住→脱敏问云端顾问拿思路续跑（getLedger 前向引用 agent，运行期才调用）。
+  let agentRef: Agent;
+  const advisor = wireAdvisor(
+    opts,
+    () => agentRef.ledgerState(),
+    (m) => process.stderr.write(cyan('[顾问] ') + dim(m) + '\n'),
+  );
+
   const agent = new Agent({
     model,
     tools,
     budget,
     systemPrompt,
-    // --once 无交互:开 escalateWhenStuck + haltWhenStuck → 卡住时输出困境报告 + 停机(stuckHalted)等外部 --strategy,而非强制猜。
-    escalateWhenStuck: !!opts.askWhenStuck,
-    haltWhenStuck: !!opts.askWhenStuck,
+    // 云端顾问优先：开启则卡住→脱敏问云端拿思路续跑（escalate=true, halt=false）；
+    // 否则沿用 --ask-when-stuck 的「输出困境报告 + 停机(stuckHalted) 等外部 --strategy」行为。
+    escalateWhenStuck: advisor.enabled || !!opts.askWhenStuck,
+    haltWhenStuck: !advisor.enabled && !!opts.askWhenStuck,
+    maxEscalations: advisor.enabled ? advisor.maxEscalations : 3,
+    ...(advisor.askStrategy ? { askStrategy: advisor.askStrategy } : {}),
     approve: async (call) => {
       if (opts.autoApprove) {
         process.stderr.write(yellow(`  [auto-approve] ${call.name}(${JSON.stringify(call.args).slice(0, 100)})\n`));
@@ -162,6 +174,7 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
       return false;
     },
   });
+  agentRef = agent; // 供云端顾问 getLedger 前向引用（运行期 stuckIntervene 内才调用，此时已赋值）
 
   // 流式：assistant 正文增量直接进 stdout（评分脚本读 stdout，增量拼起来=完整答案）。
   agent.on('assistantDelta', (delta) => {

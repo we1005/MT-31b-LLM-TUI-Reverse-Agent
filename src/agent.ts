@@ -7,7 +7,7 @@
 import { type LanguageModel, type ModelMessage, streamText } from 'ai';
 import { EventEmitter } from 'node:events';
 import { Budget } from './budget.ts';
-import { Ledger } from './memory/ledger.ts';
+import { Ledger, type LedgerState } from './memory/ledger.ts';
 import type { Approval, ToolRegistry } from './tools/index.ts';
 
 export interface ToolCallPending {
@@ -987,6 +987,14 @@ export class Agent extends EventEmitter {
   /** 暴露当前消息历史用于 UI 渲染 / 持久化 */
   getMessages(): ModelMessage[] {
     return [...this.messages];
+  }
+
+  /**
+   * 暴露台账只读快照（供云端顾问脱敏取「已知敏感标识符清单」，见 redact.ts / advisor.ts）。
+   * 返回的是 toJSON() 的结构拷贝，外部不能改台账内部状态。
+   */
+  ledgerState(): LedgerState {
+    return this.ledger.toJSON();
   }
 
   get step(): number {

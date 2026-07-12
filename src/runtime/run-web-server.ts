@@ -7,6 +7,7 @@
  * 合规:只读逆向分析,不产出破解。
  */
 import { Agent } from '../agent.ts';
+import { type AdvisorWiring, wireAdvisor } from '../advisor.ts';
 import { Budget } from '../budget.ts';
 import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
@@ -14,7 +15,7 @@ import { loadSystemPrompt } from '../prompts.ts';
 import { builtinTools, ToolRegistry } from '../tools/index.ts';
 import { WEB_HTML } from './web-ui.ts';
 
-export interface RunWebServerOpts {
+export interface RunWebServerOpts extends AdvisorWiring {
   backend: Backend;
   model?: string;
   baseURL?: string;
@@ -54,6 +55,17 @@ export async function runWebServer(opts: RunWebServerOpts): Promise<number> {
   let busy = false;
   let pendingApproval: ((ok: boolean) => void) | null = null;
 
+  // 混合后端：--consult-cloud 时卡住→脱敏问云端拿思路续跑；日志同时打 stderr + 广播给浏览器。
+  let agentRef: Agent;
+  const advisor = wireAdvisor(
+    opts,
+    () => agentRef.ledgerState(),
+    (m) => {
+      process.stderr.write(`[顾问] ${m}\n`);
+      send({ type: 'warn', text: `[顾问] ${m}` });
+    },
+  );
+
   const agent = new Agent({
     model,
     tools,
@@ -67,7 +79,11 @@ export async function runWebServer(opts: RunWebServerOpts): Promise<number> {
         send({ type: 'approval', name: call.name, args: call.args });
       });
     },
+    escalateWhenStuck: advisor.enabled,
+    maxEscalations: advisor.enabled ? advisor.maxEscalations : 3,
+    ...(advisor.askStrategy ? { askStrategy: advisor.askStrategy } : {}),
   });
+  agentRef = agent;
 
   // Agent 事件 → 广播给所有浏览器
   agent.on('assistantDelta', (d: string) => send({ type: 'assistantDelta', text: d }));

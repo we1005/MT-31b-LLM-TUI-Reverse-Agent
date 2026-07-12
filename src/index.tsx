@@ -32,6 +32,14 @@ const program = new Command()
   .option('--allow-write', 'MCP server 模式下放行 write 类工具（默认拒）')
   .option('--ask-when-stuck', '原地打转时不强制猜答案，改为输出困境报告求思路（TUI 粘贴续跑 / --once 输出报告并 exit=3）')
   .option('--strategy <text>', '（配合 --once）注入用户/更强模型给的分析思路，让 agent 按此重新分析（承接上一轮 exit=3 的困境报告）')
+  // —— 混合后端：卡住→脱敏→问云端顾问拿思路（默认关，纯本地不出网）——
+  .option('--consult-cloud', '卡住时把困境报告脱敏后问云端顾问拿思路，思路回本地续跑（默认关；开启才会出网）')
+  .option('--advisor-backend <name>', '顾问后端: claude | openai | volcengine | local | lemonade（local/lemonade 串行不外泄，用于自测）', 'claude')
+  .option('--advisor-model <id>', '顾问 model id（按后端默认）')
+  .option('--advisor-base-url <url>', '顾问 baseURL（--advisor-backend local 时必填）')
+  .option('--advisor-api-key <key>', '顾问 API key（云端后端用；缺省从 env ANTHROPIC/OPENAI/ARK_API_KEY）')
+  .option('--redact-level <0|1|2>', '脱敏档：0=仅URL/IP/key/路径 1=+包名类名方法名 2=最严(默认)', '2')
+  .option('--max-consults <n>', '顾问调用次数上限（防无限求助循环）', '3')
   .allowExcessArguments(false);
 
 await program.parseAsync(process.argv);
@@ -39,6 +47,17 @@ const opts = program.opts();
 
 // 短路 --version（不 import 任何重模块）
 // commander 自动处理 --version 退出
+
+// 混合后端顾问参数（三种运行模式共用）：默认关，仅 --consult-cloud 时生效。
+const advisorOpts = {
+  consultCloud: !!opts['consultCloud'],
+  advisorBackend: opts['advisorBackend'] as never,
+  advisorModel: opts['advisorModel'] as string | undefined,
+  advisorBaseURL: opts['advisorBaseUrl'] as string | undefined,
+  advisorApiKey: opts['advisorApiKey'] as string | undefined,
+  redactLevel: Number(opts['redactLevel']),
+  maxConsults: Number(opts['maxConsults']),
+};
 
 // MCP server 模式优先：进 stdio loop 永不返回，直到 SIGTERM/SIGINT
 if (opts['mcpServer']) {
@@ -65,6 +84,7 @@ if (opts['web']) {
     budget: Number(opts['budget']),
     notesPath: opts['notes'] as string,
     port: Number.isFinite(port) ? port : 5178,
+    ...advisorOpts,
   });
   process.exit(code);
 }
@@ -93,6 +113,7 @@ const exitCode =
         notesPath: opts['notes'] as string,
         askWhenStuck: !!opts['askWhenStuck'],
         strategy: opts['strategy'] as string | undefined,
+        ...advisorOpts,
       })
     : await runInteractive({
         resume,
@@ -106,6 +127,7 @@ const exitCode =
         budget: Number(opts['budget']),
         notesPath: opts['notes'] as string,
         askWhenStuck: !!opts['askWhenStuck'],
+        ...advisorOpts,
       });
 
 process.exit(exitCode);
