@@ -360,3 +360,28 @@ cd /Volumes/zhitai-7100/reverse-agent/rev-agent && expect /tmp/rev.exp
 - **要人机交互 / 远程 / HITL** → L3（把 Agent 服务化，TUI 与 web 共用后端）。
 
 三层不是二选一：**平时 CI 跑 L1 + L2a（确定、秒级），偶尔手动跑一次 L2b 冒烟兜真进程，L3 作为产品化/远程能力的长期落点。** 全环节遵守 lemonade 单并发——所有真后端调用串行。
+
+
+---
+
+## 附:真实做题会话 bug 猎 + 美观核验(2026-07-12,commit 见 git)
+> 用户要求"在真实做题的多轮 TUI 交互中找 bug(简单命令暴露不出严重问题)"+ 保证美观。实测如下。
+
+### A. 真实做题会话(`scripts/tui-real-session.test.tsx`,真 Agent+真工具+lemonade)
+经 App 的 onSubmit 路径驱动**真实 2 轮逆向问题**(复刻 run-interactive 接线),**7/7 过**:
+- 第1题「找 MT 主 Activity 入口类」:**5 次真工具调用 + 623 reasoning delta + 376 assistant delta + done,零 agent error**。
+- 第2题多轮跟进「它继承自哪个基类」:仍流式 + done(计数器重置生效、未卡死)。
+- 全程**无进程崩溃**(uncaughtException/unhandledRejection)。
+→ 交互/逻辑层在真实负载下**无 bug**;多轮、流式、真工具执行、审批(自动放行)全通。
+
+### B. ⚠️ 发现并修的真实稳定性 bug:MessageList 未知 role 崩溃 → 白屏
+个体组件渲染(`testRender` 单渲 MessageList,**非空白,可捕获**——与整 App 空白不同)时暴露:`ROLE_STYLE[m.role].fg` 对**任何不在 ROLE_STYLE 的 role 直接抛 TypeError**,一条坏消息炸掉**整个消息流→白屏**,无 fallback。
+- 现状 App 派发的 8 个 role 都在表内(正常不触发),但**加新 role/拼错/外部消息即白屏**=稳定性地雷。
+- **已修**:`const style = ROLE_STYLE[m.role] ?? ROLE_STYLE.system`(未知 role 回退,永不炸屏)。实测含 `weird-unknown` role 的列表不再崩、正常渲染。
+
+### C. 美观核验(个体组件真实渲染帧)
+- **消息流**:role 色+图标前缀区分清晰——`›`用户(cyan)/`💭`思考(暗灰)/`→[grep]`工具调(magenta)/`  ←`结果(缩进灰)/`  ✗`拒(红)/`✗`错(红)/`⚠`系统(灰);CJK 无乱码;层次干净。
+- **BudgetBar**:`████░░░ 56.0k/80.0k (70%)` 填充条+数字,清爽(70% 转黄)。
+- **ToolApproval**:圆角边框卡片 `╭─╮`+`⚠ 工具审批:<name>`+JSON args,美观。
+- **CJK 边框对齐**:headless capture 里 CJK 行右框列偏移,经分析=captureCharFrame 把宽字符表示为 1 字符串位(占 2 cell)的**表示 artifact**,真实终端 cell 上对齐(建议真机扫一眼确认)。
+→ 个体组件**渲染精美、色彩语义清晰、CJK 正确**;整 App 的 captureCharFrame 空白是 OpenTUI 无头捕获 nuance(非美观问题,真机可用)。

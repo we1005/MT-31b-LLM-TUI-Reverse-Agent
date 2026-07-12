@@ -40,15 +40,19 @@ const ROLE_STYLE: Record<Role, { fg: string; prefix: string }> = {
 export function MessageList({ messages }: MessageListProps) {
   return (
     <scrollbox flexGrow={1} flexDirection="column">
-      {messages.map((m) => (
-        <box key={m.id} flexDirection="row" marginBottom={0}>
-          <text fg={ROLE_STYLE[m.role].fg} wrapMode="word">
-            {ROLE_STYLE[m.role].prefix}
-            {m.toolName ? `[${m.toolName}] ` : ''}
-            {m.text}
-          </text>
-        </box>
-      ))}
+      {messages.map((m) => {
+        // 稳定性:未知 role 回退到 system 样式,绝不让一条坏消息 (ROLE_STYLE[role] undefined) 抛错炸掉整个消息流→白屏。
+        const style = ROLE_STYLE[m.role] ?? ROLE_STYLE.system;
+        return (
+          <box key={m.id} flexDirection="row" marginBottom={0}>
+            <text fg={style.fg} wrapMode="word">
+              {style.prefix}
+              {m.toolName ? `[${m.toolName}] ` : ''}
+              {m.text}
+            </text>
+          </box>
+        );
+      })}
     </scrollbox>
   );
 }
