@@ -216,6 +216,27 @@ section('题8 台账汇出质量：不把 java/com/get 等通用短词纳入清�
   ok('含点分名 C7671.get', known.includes('C7671.get'));
 }
 
+// ————————————————————— 题 10：云端自造复合伪占位符也能还原（真实 minimax 触发过）—————————————————————
+section('题10 复合伪占位符：云端把 <CLS_3> 写成 <PATH_to_CLS_3> / <CLS_3 的方法体> 也能整括号还原');
+{
+  const map = { toReal: new Map<string, string>(), toToken: new Map<string, string>() };
+  map.toReal.set('<CLS_3>', 'AbstractC3962');
+  map.toReal.set('<CLS_30>', 'ZzTop');
+  const reply = '读 <PATH_to_CLS_3> 的方法体；另见 <CLS_3 的实现>；以及 <CLS_30> 类。';
+  const restored = restore(reply, map as never);
+  ok(
+    '复合 <PATH_to_CLS_3> 整体还原为真值',
+    restored.includes('AbstractC3962') && !restored.includes('PATH_to_CLS_3'),
+    `restored="${restored}"`,
+  );
+  ok(
+    '无残留我方 inner id/尖括号伪占位',
+    !/CLS_3\b/.test(restored) && !/<[^>]*CLS_\d/.test(restored),
+    `restored="${restored}"`,
+  );
+  ok('CLS_30 未被 CLS_3 串号吃掉', restored.includes('ZzTop'));
+}
+
 // ————————————————————— 汇总 —————————————————————
 console.log(`\n${'='.repeat(60)}`);
 console.log(`脱敏防火墙题库：${passed} 通过 / ${failed} 失败`);

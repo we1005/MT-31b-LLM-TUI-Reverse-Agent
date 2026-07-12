@@ -36,11 +36,17 @@ C11960.checkVip → AbstractC3962.isPremium | 证据 C11960.java:88
 let capturedClean = '';
 const events: AdvisorEvent[] = [];
 
+// 后端可用环境变量覆盖：默认本地 lemonade(串行零外泄)；ADVISOR_BACKEND=volcengine 则真打外部云端。
+const backend = (process.env['ADVISOR_BACKEND'] ?? 'lemonade') as never;
+const advisorModel = process.env['ADVISOR_MODEL'] || undefined;
+const isCloud = backend !== 'lemonade' && backend !== 'local';
+
 const advisor = createCloudAdvisor({
-  backend: 'lemonade', // 指向本地：串行、零外部出网，安全测全链路
+  backend,
+  model: advisorModel,
   level: 2,
   getLedger: () => LEDGER,
-  timeoutMs: 180_000, // 本地 35B 慢，给足
+  timeoutMs: 180_000,
   onEgress: ({ clean }) => {
     capturedClean = clean;
     return true;
@@ -51,7 +57,9 @@ const advisor = createCloudAdvisor({
   },
 });
 
-console.log('=== 云端顾问真实端到端(顾问=本地 lemonade,串行零外泄) ===');
+console.log(
+  `=== 云端顾问真实端到端(顾问=${backend}${advisorModel ? '/' + advisorModel : ''}${isCloud ? ' ☁️真实外部云端' : ' 本地串行零外泄'}) ===`,
+);
 console.log('调用顾问中(困境报告 → 脱敏 → 真实 LLM → 还原思路)…\n');
 
 const t0 = Date.now();

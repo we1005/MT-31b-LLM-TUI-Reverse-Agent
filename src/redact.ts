@@ -291,20 +291,22 @@ export function leakScan(clean: string, level: RedactLevel): string[] {
 
 /**
  * 还原：把云端返回文本里的占位符换回真值。多层容错（云端会各种改写占位符）：
- * 1. 标准/带空格/HTML 转义包裹：`<CLS_1>` `< CLS_1 >` `&lt;CLS_1&gt;`。
- * 2. **裸内层 id 兜底**：`CLS_1`（云端把尖括号丢了/合并了）——内层 id 属我方私有命名空间，
- *    正常文本几乎不会出现 `CLS_1` 这种串，故裸替换是安全的，且能救回 `<PATH_1:...>` 这类被云端揉坏的形态。
- * 处理顺序：内层 id 长的先替（`CLS_10` 先于 `CLS_1`），避免 `CLS_1` 吃掉 `CLS_10` 的前缀。
+ * A. **尖括号内含我方 inner id → 整括号还原**：覆盖 `<CLS_1>` / `< CLS_1 >` / `&lt;CLS_1&gt;`，
+ *    也覆盖云端自造的**复合伪占位符**（实测 minimax 会写 `<PATH_to_CLS_3>` / `<CLS_3 的方法体>`）。
+ *    id 前后加**数字边界**防 `CLS_1` 吃掉 `CLS_10`；`[^<>]` 限定不跨括号。
+ * B. **裸 inner id 兜底**：`CLS_1`（云端把尖括号整个丢了）——inner id 属我方私有命名空间，
+ *    正常文本几乎不会出现 `CLS_1` 这种串，故裸替换安全。
+ * 处理顺序：inner id 长的先替（`CLS_10` 先于 `CLS_1`）。
  */
 export function restore(text: string, map: RedactionMap): string {
   let out = text;
-  const entries = [...map.toReal.entries()].sort((a, b) => b[0].length - a[0].length); // 长 token 先
+  const entries = [...map.toReal.entries()].sort((a, b) => b[0].length - a[0].length); // 长 id 先
   for (const [token, real] of entries) {
-    const inner = token.slice(1, -1); // 去掉尖括号，得 CLS_1
-    // 先扫带尖括号/转义的完整包裹形态
-    out = out.replace(new RegExp(`(?:<|&lt;)\\s*${esc(inner)}\\s*(?:>|&gt;)`, 'g'), real);
-    // 再兜底裸 id（词边界，避免把 CLS_1 误替进 CLS_10）
-    out = out.replace(new RegExp(`(?<![\\w])${esc(inner)}(?![\\w])`, 'g'), real);
+    const inner = esc(token.slice(1, -1)); // 去尖括号得 CLS_1，转义
+    // A: 尖括号(或 HTML 转义)内含 inner id → 整括号还原
+    out = out.replace(new RegExp(`(?:<|&lt;)[^<>]*?(?<!\\d)${inner}(?!\\d)[^<>]*?(?:>|&gt;)`, 'g'), real);
+    // B: 无括号的裸 id 兜底（词边界）
+    out = out.replace(new RegExp(`(?<![\\w])${inner}(?![\\w])`, 'g'), real);
   }
   return out;
 }
