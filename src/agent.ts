@@ -145,7 +145,9 @@ function delay(ms: number): Promise<void> {
 function endsWithContinuationIntent(text: string): boolean {
   const t = text.trim();
   if (!t) return true; // 空文本 + 无工具调用 = 退化的空停，视为需要 nudge
-  if (/##\s*最终结论|最终(答案|结论)|final\s+(answer|conclusion)/i.test(t)) return false;
+  // 结论判据要求 markdown 标题形式(行首 #…)——agent 被要求以「## 最终结论」开头。
+  // 修真实 bug:旧的裸 `最终(答案|结论)` 会被计划项"3. 给最终结论"误命中,导致 agent 半途误判已收尾而停(错锚点探针实测)。
+  if (/(?:^|\n)\s*#{1,6}\s*最终(?:结论|答案)|final\s+(answer|conclusion)/i.test(t)) return false;
   // 尾行是 markdown 标题（"## 阶段2：grep…"）或步骤宣告（"**Step 3: 精读 C19184**"）
   // = 打了个标题/步骤号就停手，属断链宣布。
   const lastLine = t.split('\n').map((l) => l.trim()).filter(Boolean).pop() ?? '';
@@ -415,7 +417,7 @@ export class Agent extends EventEmitter {
     const ms = this.ledger.stats();
     const cacheAvg = this.cacheCount ? Math.round(this.cacheSum / this.cacheCount) : -1;
     const cacheMin = this.cacheCount ? this.cacheMin : -1;
-    const conclusion = /##\s*最终结论|最终(答案|结论)/.test(
+    const conclusion = /(?:^|\n)\s*#{1,6}\s*最终(?:结论|答案)/.test(
       this.messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join(''),
     );
     this.emit(
@@ -872,7 +874,7 @@ export class Agent extends EventEmitter {
           //   极可能是"追对了但漏了收尾拼图"（SWA run 实测：追出4跳 C7671→C11960→C8897→
           //   AbstractC10122→C16122，但最后一句是陈述句、未被 suspicious 命中而直接 done，链路图没画）。
           //   用 ledger O(1) 草稿逼它补一次收尾。与 suspicious 判据正交，堵检测句式的漏网。
-          const hasConclusion = /##\s*最终结论|最终(答案|结论)/.test(
+          const hasConclusion = /(?:^|\n)\s*#{1,6}\s*最终(?:结论|答案)/.test(
             this.messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join(''),
           );
           // Defect H（crack-audit guided 实测）：审计/理解类任务 hops=0（非"跳N"链路格式），读了代码却
