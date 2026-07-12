@@ -9,3 +9,10 @@
 - `GT-easynotes.md` — EasyNotes 破解 ground truth(人工核实, 判分用)。
 
 pi 源码在本机 `/Volumes/zhitai-7100/pi-0.80.6/`(@earendil-works/pi-coding-agent v0.80.6)，需先 `npm ci --ignore-scripts && npm run build`。
+
+## 前置强模型案卷实验产物
+- `frontanalysis-workflow.js` — 强模型前置分析 workflow 脚本(定位混淆破解点→case-file)。改 ROOT 换目标 App。
+- `example-casefile-device.md` — 强模型对 Device_Info 产出的案卷样例(去混淆映射+op4.java:71-72 破解点+VP待核对清单)。
+
+## 手动复现
+完整逐条复现步骤 + 所有 verbatim 提示词(含给前置强模型的 4 路搜索提示 + 案卷综合提示 + pi handoff 提示) 见 `../docs-resources/pi-agent实验复现手册.md`。
