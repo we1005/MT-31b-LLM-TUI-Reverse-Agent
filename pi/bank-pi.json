@@ -1,0 +1,23 @@
+{
+  "_note": "pi-agent × lemonade Qwen3.6 基准题库。中/高难度。GT 锚点供 score-anchors.py 判分。medium 题复用 11 模型 benchmark 的已知答案(可与 rev-agent 直接对比)。",
+  "problems": [
+    {
+      "id": "ctf-medium-mcp-entry",
+      "difficulty": "medium",
+      "workdir": "/Volumes/zhitai-7100/reverse-agent/work/mt-jadx",
+      "task": "在当前目录的反编译产物里，找出 MT 管理器 2.26.5 的 MCP server 入口类（真正实例化并注册工具的那个）。给出相对路径 + 类名，并说明它与 JSON-RPC 路由类、Android Service 启动器的关系。必须实际 read_file 确认。",
+      "ground_truth": "MCP server 入口是 l/C19184.java（NanoHTTPD server 实例，构造器 new C8897 注册 8 工具，serverInfo 'MT APK MCP' v0.1.0）；C19184 extends C7671（HTTP/SSE 传输层，处理 MCP-Protocol-Version header）；C11960.java 是 JSON-RPC 方法分发器（tools/list、tools/call、initialize）；ServiceC7545.java 是 Android Service 启动器，onStartCommand 里 new C19184。",
+      "evidence": "l/C19184.java l/C11960.java l/C7671.java l/ServiceC7545.java C8897",
+      "grading_regex": "C19184|C11960|ServiceC7545"
+    },
+    {
+      "id": "ctf-hard-mcp-tool-chain",
+      "difficulty": "hard",
+      "workdir": "/Volumes/zhitai-7100/reverse-agent/work/mt-jadx",
+      "task": "MT 管理器的 MCP server（入口 C19184，工具注册在 C8897）注册了多个工具。请追出『执行 shell 命令』这个工具从注册点到最底层实际执行（Runtime.exec/ProcessBuilder/su/native）的完整调用链，每一跳给 类名.方法 | 证据 文件:行号，至少 4 跳；若经反射/native 明确指出。",
+      "ground_truth": "待建立：从 C8897 工具注册表里 exec 类工具 → 其 handler 类 → 最终 Runtime.getRuntime().exec / ProcessBuilder / su 调用点。此题作为高难多跳，GT 以 rev-agent+pi 双跑交叉核验 + 人工抽查确立。",
+      "evidence": "C8897 C19184 exec ProcessBuilder Runtime",
+      "grading_regex": "C8897|exec|ProcessBuilder|Runtime"
+    }
+  ]
+}
