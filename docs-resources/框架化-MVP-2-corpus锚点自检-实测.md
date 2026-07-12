@@ -24,6 +24,18 @@
 - ✅ **正确收窄到真 crack**：点明"要么篡改 SharedPreferences 标志位，要么 **`getHasBuyed()/getHasSubscribe()` 等 getter 被 hook/mod 返回预期值**"——`getHasBuyed` 出现 3 次，正是真 crack 所在 getter；并**诚实标注**"建议 Frida/读 getter 验证"，**没有编造**确切机制。
 - 98.8s、hops=11、conclusion=1（这次是真的）。
 
+## 2之二. 正向提速探针（正确案卷救活单跑失败的题）
+
+MVP-2 另一半效果：给**正确**案卷，能否救活 rev-agent **单跑失败**的全混淆题（对照 pi 的 900s→132s）。目标选 Device_Info（全混淆无 grep 锚点，rev-agent **单跑**实测 101s/reads=0/只 narration 无真答案）。把正确案卷（`op4.java:71-72` 破解点，pi 实验产的）放进目录，用 `rev-agent --corpus device-jadx` 跑：
+
+| Device_Info（全混淆无锚点） | rev-agent 单跑 | **rev-agent + 正确案卷(--corpus)** |
+|---|---|---|
+| 结果 | ❌ 101s / reads=0 / 无真答案 | ✅ **123s / 精确命中真破解点 / 已逐行核实** |
+| 命中 | — | `op4.op4()` @op4.java:71-72（Patch A `new kr1(true)` 死读孤儿）+ `op4.n()` 534/538（Patch B）+ `op4.l()` 489（读取闸门恒真），全部"已 Read 核实"，还讲出 smali const-patch 指纹 |
+
+→ **正向效果确认**：与 pi 的 case-file 突破一致——**正确案卷把 rev-agent 单跑打不动的全混淆题救活**（reads 0→3、无答案→精确四段式）。这就是"强模型定位 + 弱模型核对落地"的分工在 rev-agent 上的复现。
+（小 telemetry quirk：该 run SCORECARD conclusion=0 但输出确有行首 `## 最终结论`；结论正则经单测确认正确匹配"## 最终结论"、拒"给最终结论"计划项，属 wrap-forced 路径的计数口径小瑕疵，不影响答案。）
+
 ## 3. 裁决
 - ✅ **MVP-2 核心（防错锚点传染）验证通过**：给一个判错的案卷，rev-agent 读码、**显式指出案卷有误**、不照抄错锚点、自行收窄到真 crack 区并诚实标注不确定——**错误没有传染**。锚点自检纪律 + verify-don't-trust 协议起效。
 - ✅ **顺带修掉一个真 bug**：结论检测对"给最终结论"计划项的假阳性（会让 agent 半途误判收尾）——改为要求 `##` 标题，离线全绿。
