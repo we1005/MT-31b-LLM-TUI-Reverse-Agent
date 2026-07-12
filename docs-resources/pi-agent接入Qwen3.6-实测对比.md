@@ -149,6 +149,21 @@ node .../cli.js -e .../lemonade-provider.ts \
 
 **两者都没做出真答案**——`grep premium` 在全混淆包里找不到锚点，谁都没读到真 patch。差异只在**失败姿势**：pi 死磕到 900s 墙钟、烧 66k token、0 产出；rev-agent 的止损守卫 101s 就优雅退出（但同样没答案，且 conclusion=1 是"输出最终结论"指令文本触发的假阳性）。→ **这是模型能力上限**（本地 35B + keyword-grep 在全混淆目标上打不动），不是 harness 的锅。
 
+### 5.3之补·⭐ 前置强模型案卷 → pi 续跑：突破 pi 单跑的混淆上限（实测）
+
+针对"pi 单跑打不动全混淆题"，测**强模型前置分析 case-file 喂给 pi 续跑**（仿 rev-agent `--corpus`）：先用 workflow(Claude 多 agent) 前置分析 Device_Info，定位混淆破解点 `op4.op4(Context)` @ `defpackage/op4.java:71-72`（弃读 `getBoolean("is_ad_free",false)` 后硬编码 `new kr1(true)`），产出含**去混淆映射 + 候选破解点 file:line + VP1–VP6 待核对清单**的案卷；再把案卷注入 pi 让它**只读核对**。
+
+| Device_Info（全混淆破解定位） | pi 单跑 | **pi + 前置案卷** |
+|---|---|---|
+| 结果 | ❌ 超时空答 | ✅ **正确四段式审计** |
+| 墙钟 | 900s（被 kill） | **132s** |
+| token | 66k | **13.5k** |
+| 工具 | 47（**30 grep 乱搜**） | 14（**全 read，0 grep**） |
+
+**0 grep / 14 read 是铁证**：案卷把"在无锚点混淆树里搜索"（pi 的死穴）**降级成"照 file:line 核对"**（pi 的强项）——pi 直奔 `op4.java:71-72` 读、确认 `new kr1(true)` 恒真 patch、画出调用链、给出加固方案，还准确描述了"弃读孤儿 getBoolean"这个 const-patch 指纹。
+
+→ **结论：前置强模型分析文件夹对 pi 续跑效果极显著**——失败→成功、6.8x 快、5x 省。前提：案卷必须给**真去混淆 file:line 锚点 + 待核对清单**（把"搜索"降级为"核对"），而非泛泛散文。风险：若案卷判错，pi 会顺着错的核对（需让 pi 只读核对而非盲信，本次 prompt 已要求"发现有误如实指出"）。
+
 ### 5.3 本地模型 + pi 的上限（实测标定）
 
 - ✅ **能做**：定点定位（中难度）、**有 grep 锚点的深多跳破解审计**（EasyNotes：isVip 锚点 → 跟两跳到 UserConfig getter，精确命中）。这已经相当强——一个本地 35B 靠 pi 做出了带 file:line 证据的完整破解审计 + 加固方案。
@@ -176,6 +191,6 @@ node .../cli.js -e .../lemonade-provider.ts \
 1. **要深挖破解审计** → 用 **pi + RE 纪律提示 + 外层 timeout**（它肯读、能跟深链），但务必包一层墙钟兜底防空答。
 2. **要快速定点 / 要永不挂的稳定产出** → 用 **rev-agent**（协议+止损焊死，快且总有答案），代价是深多跳时可能被守卫掐浅。
 3. **理想形态** = pi 的"肯深读"韧性 + rev-agent 的"到点强制收尾"守卫。rev-agent 的 stall/forced-finish 是双刃剑：给了鲁棒性，但会切断合理的深调查（EasyNotes 就吃了这亏）——值得据此回看 rev-agent 的 stallCap 是否在"有进展的深读"场景下过于激进。
-4. **本地 35B 的硬上限**：全混淆无锚点的破解定位，两个 harness 都打不动——这是模型 + keyword-grep 策略的天花板，需要更强模型或动态分析（frida）才能破。
+4. **本地 35B 的硬上限 + 已验证的破法**：全混淆无锚点的破解定位，两个 harness **单跑**都打不动（模型 + keyword-grep 天花板）。但**实测有解**（§5.3之补）：**强模型前置分析产 case-file（去混淆映射 + file:line 锚点 + 待核对清单）→ 喂 pi 续跑**，把 pi 打不动的"搜索题"降级成它擅长的"核对题"——Device_Info 从"900s 超时空答"翻成"132s 正确审计、0 grep/14 read"。即"强模型定位 + 弱模型核对落地"的分工（rev-agent `--corpus` 思路；云端顾问可作在线的前置强模型来源）。
 
 > ⚠️ 合规：全程只读逆向，apk-moded 审计用 `-t read,grep,find,ls` 物理排除 edit/write/bash，产出为**给原开发者的防御加固建议**，不产破解步骤、不改 APK。
