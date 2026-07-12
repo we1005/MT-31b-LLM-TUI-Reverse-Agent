@@ -308,6 +308,23 @@ flowchart TD
 - ♻️ **dedup 去重守卫**：重复 read 同范围 / 重复 grep 同 pattern+path → 不真跑，回台账提示。
 - 🔁 LLM 可重试错误（网络/5xx/超时/abort）指数退避重试。
 
+### 🚧 待办（将来实现）：把逆向负担从模型移到框架
+
+> 缘起：35B 本地模型逆向能力有上限，纯靠模型效果有限（pi-agent × Qwen3.6 实测印证）。方向 = 把「决策/流程/记忆」负担从弱模型移进框架。**深度分析 + 红队 + 落地设计见 `docs-resources/框架化-把逆向负担从模型移到框架.md`。**
+
+**一条铁律（设计红线）**：框架只做两件事——① 按**硬可观测事实**往上下文注入信息，② 按**资源硬上限**收预算；**永不替 agent 决定「下一步动作是什么」或「任务是否完成」**。越线即退化成反编译流水线，丢掉 rev-agent 的独特价值（协议注入 + 深读裁量）。
+
+分阶段 MVP（按 bitter-lesson 半衰期排序，后悔度低的先做）：
+
+1. **MVP-0（离线·零模型·最高优先）**：把 stall/readHopStall 守卫**纯函数化 + 离线单测**，断言 signal-gated——「有活跃线索/在深读」时**不掐停**、只在「原地打转」时 clamp（缩预算而非强制收尾）。
+2. **MVP-1（1 次串行复测）**：守卫从 count-gated（步数/墙钟无增长触发强制收尾）→ **signal-gated（证据质量/是否逼近锚点）+ 注入 CHECKPOINT 提示**；`forcedFinish` 仅在墙钟/token **硬上限**触发且标注「资源上限」非「任务完成」；用 `REV_GUARD_MODE=signal|count` 包裹可 A/B。**验收**：EasyNotes 深多跳（rev-agent 现在 reads=0 浅答判错）翻成深读命中，且中难度定点定位不退化。
+3. **MVP-2（corpus/advisor 提前加码）**：强化 `corpus.ts`/`advisor.ts`——案卷给真 `file:line` 锚点、执行阶段保留 replan/质疑、fail-closed 脱敏门；加「**错锚点探针题**」验证 agent 不盲信前置分析。（实测 case-file 让 pi 在全混淆题 900s 超时→132s 命中。）
+4. **MVP-3（离线）**：`tool-help`/playbook 从被动 grep → 按 stack-probe **确凿匹配的栈主动注入**到 messages 末尾（遵守 SWA 稳定前缀，**只作 context 不作 control**，模型可无视）。
+5. **MVP-4（最后·最小）**：第一个程序性 playbook，**优先从 ledger/`--corpus` 解出的轨迹自动生长**，手写策展仅冷启动兜底。
+
+> ❌ 不做：通用**事实** RAG（弱模型检索悖论——实测 `grep tool-help src/` 零命中=模型根本不会主动查）；把 agent 写死成固定线性脚本（丢泛化）；把守卫做成「检测到 X 就强制执行 Y 步」（越铁律红线）。
+> ⚠️ 天花板如实：全混淆无 grep 锚点是模型+keyword-grep 联合上限，流程编排救不了；能破壁的动态分析（frida/脱壳）今天 harness 结构上做不了（shell 一次性、无 stdin）→ 唯一可落地破壁通道 = 强模型 case-file/云端顾问（且只「搬动」上限、不「突破」）。
+
 ---
 
 ## 🌊 流式与思考链
