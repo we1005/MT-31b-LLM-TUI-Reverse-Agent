@@ -35,15 +35,19 @@ const SEED: Playbook[] = [
     triggerPatterns: [/破解|篡改|crack|\bmod\b|vip|会员|premium|解锁|盗版|授权|付费/i],
     title: '破解审计套路（付费/会员绕过定位）',
     steps: [
-      'grep 授权判定入口：isVip|isPro|isPremium|checkVip|isPurchased|isSubscribed|hasPremium|getHasBuyed|getHasSubscribe|entitlement|license',
-      '对每个命中的判定方法/getter，read 其方法体（≤200 行）看真实现——常见 mod 三套路：',
+      'grep 授权判定入口（名字随 App 变，多试几组别只试 vip）：' +
+        'isVip|isPro|isPremium|checkVip|isPurchased|hasPremium|getHasBuyed|entitlement|license 以及 ' +
+        'isSubscribed|isSubscription|hasSubscription|isPlusSubscription|isGoldSubscription|isPlus|isSuper|subscription|premium|donate|adFree|isAdFree|skuPremium',
+      '对每个命中的判定方法/getter，read 其方法体（≤200 行）看真实现——常见 mod 四套路：',
       '  ① 恒真返回：方法体读了 prefs.getBoolean(...) 却丢弃返回值、随后无条件 return true（弃读孤儿 = smali const-patch 指纹）',
-      '  ② 校验删除/短路：签名校验 / LicenseChecker / Play Billing 校验被删，或 if 判断被反转/跳过',
-      '  ③ 真 patch 常在深一两跳：isVip() 本身逻辑完整时，真改动在它调用的 getHasBuyed()/getHasSubscribe() 这类 getter → 必须跟进去 read，别停在 isVip',
+      '  ② 三元恒真/重言式：return cond ? true : true（两分支都 true）或 return !true(=false)——被 patch 成与条件无关的恒定值（Duolingo isPlusSubscription / Code Editor 实见）',
+      '  ③ 校验删除/短路：签名/License/Play Billing 校验被删或 if 反转跳过；或 mod 注入恒真 helper 类（如 com.<modder>.common.leetrue() 恒 return true）供各门禁调用（Clone 实见）',
+      '  ④ 真 patch 常在深一两跳：入口方法逻辑完整时，真改动在它调用的 getter（getHasBuyed/getHasSubscribe）或它读的 StateFlow 被 new kr1(true) 硬播种 → 跟进去 read，别停在入口',
+      '也可直接 grep 篡改指纹定位：字面 `? true : true`、`return true;` 扎堆的类、getBoolean(...) 后无赋值的孤儿行',
       '定位到后给四段式：破解点（类.方法+行号）/ 手法 / 调用链 / 加固（服务端校验 + 完整性签名校验 + 多点冗余 + 反 tamper）',
     ],
     source: 'seed',
-    provenance: '本项目 EasyNotes(getHasBuyed 深两跳恒真)/Device_Info(op4 构造器 new kr1(true)) 审计归纳',
+    provenance: '本项目 EasyNotes(getHasBuyed 深两跳)/Device_Info(op4 new kr1(true))/Duolingo(isPlusSubscription ?true:true)/Clone(注入 leetrue 恒真 helper) 审计归纳',
   },
   {
     id: 'unity-il2cpp',

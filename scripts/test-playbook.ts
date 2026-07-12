@@ -36,7 +36,10 @@ console.log('\n【只作 context 渲染(可无视,非命令)】');
 {
   const block = renderPlaybookBlock(matchPlaybooks(undefined, 'crack vip', []));
   ok('渲染块明确"可无视·不是命令"', /可无视/.test(block) && /不是命令/.test(block));
-  ok('含破解三套路(恒真/短路/深一两跳)', /恒真/.test(block) && /深一两跳/.test(block));
+  ok('含破解套路(恒真/短路/深一两跳)', /恒真/.test(block) && /深一两跳/.test(block));
+  ok('★闭环修:含 subscription 系锚点(治 Duolingo 漏)', /isPlusSubscription|isSubscription|hasSubscription/.test(block));
+  ok('★闭环修:含 ? true : true 重言式指纹', /\? true : true/.test(block));
+  ok('★闭环修:含注入恒真 helper 指纹(治 Clone)', /leetrue|恒真 helper/.test(block));
   ok('空匹配渲染为空串', renderPlaybookBlock([]) === '');
 }
 
