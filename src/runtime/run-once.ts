@@ -12,7 +12,7 @@ import { buildCorpusProtocol, buildManifestText, scanCorpus } from '../corpus.ts
 import { probeStack } from '../stack-probe.ts';
 import { loadSystemPrompt } from '../prompts.ts';
 import { buildResumeContext } from '../resume.ts';
-import { ToolRegistry } from '../tools/index.ts';
+import { builtinTools, ToolRegistry } from '../tools/index.ts';
 
 export interface RunOnceOpts {
   task: string;
@@ -111,7 +111,7 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
     baseURL: opts.baseURL,
     apiKey: opts.apiKey,
   });
-  const tools = new ToolRegistry();
+  const tools = new ToolRegistry(builtinTools(opts.notesPath));
   const budget = new Budget(opts.budget ?? DEFAULT_CONFIG.tokenBudget);
 
   process.stderr.write(

@@ -11,7 +11,7 @@ import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
 import { loadSystemPrompt } from '../prompts.ts';
 import { buildResumeContext } from '../resume.ts';
-import { ToolRegistry } from '../tools/index.ts';
+import { builtinTools, ToolRegistry } from '../tools/index.ts';
 import { App, createApprovalChannel, createStrategyChannel } from '../ui/App.tsx';
 
 export interface RunInteractiveOpts {
@@ -53,7 +53,7 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
     baseURL: opts.baseURL,
     apiKey: opts.apiKey,
   });
-  const tools = new ToolRegistry();
+  const tools = new ToolRegistry(builtinTools(opts.notesPath));
   const budget = new Budget(opts.budget ?? DEFAULT_CONFIG.tokenBudget);
   const approvalChannel = createApprovalChannel();
   const strategyChannel = createStrategyChannel();

@@ -11,7 +11,7 @@ import { Budget } from '../budget.ts';
 import { type Backend, DEFAULT_CONFIG } from '../config.ts';
 import { createLLM } from '../llm.ts';
 import { loadSystemPrompt } from '../prompts.ts';
-import { ToolRegistry } from '../tools/index.ts';
+import { builtinTools, ToolRegistry } from '../tools/index.ts';
 import { WEB_HTML } from './web-ui.ts';
 
 export interface RunWebServerOpts {
@@ -36,7 +36,7 @@ export async function runWebServer(opts: RunWebServerOpts): Promise<number> {
   const section = opts.verbose ? '§2' : '§1';
   const systemPrompt = await loadSystemPrompt({ section });
   const model = createLLM({ backend: opts.backend, model: opts.model, baseURL: opts.baseURL, apiKey: opts.apiKey });
-  const tools = new ToolRegistry();
+  const tools = new ToolRegistry(builtinTools(opts.notesPath));
   const budget = new Budget(opts.budget ?? DEFAULT_CONFIG.tokenBudget);
 
   const clients = new Set<WS>();

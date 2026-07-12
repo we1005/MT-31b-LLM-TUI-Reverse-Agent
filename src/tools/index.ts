@@ -5,7 +5,7 @@
 import { tool } from 'ai';
 import type { ZodType } from 'zod';
 import { grepTool } from './grep.ts';
-import { noteTool } from './note.ts';
+import { makeNoteTool, noteTool } from './note.ts';
 import { readFileToolDef } from './read-file.ts';
 import { shellTool } from './shell.ts';
 
@@ -19,13 +19,17 @@ export interface Tool<Input = unknown, Output = unknown> {
   execute: (args: Input) => Promise<Output>;
 }
 
-/** 内置工具清单 */
-export const BUILTIN_TOOLS: Tool[] = [
-  shellTool as unknown as Tool,
-  readFileToolDef as unknown as Tool,
-  grepTool as unknown as Tool,
-  noteTool as unknown as Tool,
-];
+/** 内置工具清单。传 notesPath 则 append_note 的默认写入路径统一到该路径(否则用工具内置默认 /tmp/work-notes.md)。 */
+export function builtinTools(notesPath?: string): Tool[] {
+  return [
+    shellTool as unknown as Tool,
+    readFileToolDef as unknown as Tool,
+    grepTool as unknown as Tool,
+    (notesPath ? makeNoteTool(notesPath) : noteTool) as unknown as Tool,
+  ];
+}
+
+export const BUILTIN_TOOLS: Tool[] = builtinTools();
 
 export class ToolRegistry {
   private map = new Map<string, Tool>();

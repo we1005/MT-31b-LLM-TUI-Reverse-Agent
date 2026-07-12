@@ -35,22 +35,29 @@ async function findTemplate(): Promise<string | null> {
   return null;
 }
 
-export const noteInputSchema = z.object({
-  section: z
-    .string()
-    .min(1)
-    .max(80)
-    .describe('小标题，例如 "阶段 1 摘要" / "发现：sign 调到 native"'),
-  content: z
-    .string()
-    .min(1)
-    .max(2000)
-    .describe('正文 markdown。控制在 2KB 内，避免笔记本身变臃肿'),
-  notesPath: z
-    .string()
-    .default('/tmp/work-notes.md')
-    .describe('笔记目标路径，默认 /tmp/work-notes.md'),
-});
+const DEFAULT_NOTES_PATH = '/tmp/work-notes.md';
+
+/** 笔记 schema 工厂：notesPath 的默认值可配（统一到 --notes 指定的路径，见 makeNoteTool）。 */
+export function noteInputSchemaFor(defaultNotesPath: string = DEFAULT_NOTES_PATH) {
+  return z.object({
+    section: z
+      .string()
+      .min(1)
+      .max(80)
+      .describe('小标题，例如 "阶段 1 摘要" / "发现：sign 调到 native"'),
+    content: z
+      .string()
+      .min(1)
+      .max(2000)
+      .describe('正文 markdown。控制在 2KB 内，避免笔记本身变臃肿'),
+    notesPath: z
+      .string()
+      .default(defaultNotesPath)
+      .describe(`笔记目标路径，默认 ${defaultNotesPath}`),
+  });
+}
+
+export const noteInputSchema = noteInputSchemaFor();
 
 export type NoteInput = z.infer<typeof noteInputSchema>;
 
@@ -91,11 +98,16 @@ export async function appendNote(args: NoteInput): Promise<NoteResult> {
   }
 }
 
-export const noteTool: Tool<NoteInput, NoteResult> = {
-  name: 'append_note',
-  description:
-    '把发现追加到工作笔记 /tmp/work-notes.md。首次自动 cp 模板。这是写入类工具，每次调用都会弹审批。',
-  inputSchema: noteInputSchema,
-  classify: () => 'ask', // 永远要审批
-  execute: appendNote,
-};
+/** 工厂:生成把 notesPath 默认值统一到 defaultNotesPath 的 append_note 工具(agent 省略 notesPath 时就写这里)。 */
+export function makeNoteTool(defaultNotesPath: string = DEFAULT_NOTES_PATH): Tool<NoteInput, NoteResult> {
+  return {
+    name: 'append_note',
+    description: `把发现追加到工作笔记 ${defaultNotesPath}。首次自动 cp 模板。这是写入类工具，每次调用都会弹审批。`,
+    inputSchema: noteInputSchemaFor(defaultNotesPath),
+    classify: () => 'ask', // 永远要审批
+    // 兜底:即便 args.notesPath 缺失(极端情况),也用配置的默认路径而非硬编码 /tmp。
+    execute: (args) => appendNote({ ...args, notesPath: args.notesPath ?? defaultNotesPath }),
+  };
+}
+
+export const noteTool: Tool<NoteInput, NoteResult> = makeNoteTool();
