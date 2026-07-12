@@ -166,6 +166,15 @@ bun src/index.tsx --mcp-server              # stdio transport，把 4 个工具�
 bun src/index.tsx --mcp-server --allow-write # 放行 ask/write 类工具（默认拒）
 ```
 
+### 🌐 Web 前端模式（`--web`）
+
+```bash
+bun src/index.tsx --web              # 默认端口 5178，浏览器打开 http://localhost:5178
+bun src/index.tsx --web 8080 --workdir <源码树>   # 指定端口 + 逆向工件目录
+```
+
+把 `Agent` 包成 **Bun.serve 的 HTTP + WebSocket server + 自包含单页前端**（内联 CSS/JS、零外部资源、零新依赖）。浏览器里交互：流式消息（user/assistant/思考流可折叠/tool-call/结果分色，镜像 TUI 配色的暗色终端风）+ 工具审批弹窗（Approve/Deny 或 y/n/Esc 键）+ Token 预算条。与 TUI/`--once` 共用同一个 `Agent` 后端。**lemonade 单并发铁律**：server 用 busy 闸门保证同一时刻只跑一个 agent，拒绝并发提交。
+
 ### 🎛️ CLI flags 全表
 
 | flag | 说明 |
@@ -186,6 +195,7 @@ bun src/index.tsx --mcp-server --allow-write # 放行 ask/write 类工具（默�
 | `--notes <path>` | 工作笔记路径（默认 /tmp/work-notes.md） |
 | `--mcp-server` | 进入 MCP server（stdio） |
 | `--allow-write` | MCP server 下放行 ask/write 类工具 |
+| `--web [port]` | 🆕 Web 前端模式（浏览器交互，Bun.serve WebSocket，默认端口 5178） |
 | `-V, --version` | 打印版本立即退出（<200ms，不 import 重模块） |
 
 ### ✅ 跑验收
@@ -329,7 +339,7 @@ flowchart TD
 | | 项 | 替代方案 |
 |---|---|---|
 | ❌ | sub-agent / 多 agent 协作 | 单 agent + `--corpus` 摄入他人产物 |
-| ❌ | Web UI | OpenTUI |
+| ✅ | Web UI（`--web`，🆕 已实现） | Bun.serve WS + 单页前端，与 TUI/`--once` 共用 Agent 后端 |
 | ❌ | RAG / 向量检索 | grep + 笔记 + 带外台账 |
 | ❌ | chroot/docker 沙箱 | 白名单 + timeout + 截断三层兜底 |
 | ❌ | 对话持久化 DB | 笔记落 /tmp + 带外 ledger |
