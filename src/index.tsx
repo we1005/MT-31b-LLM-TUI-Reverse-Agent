@@ -48,6 +48,17 @@ const opts = program.opts();
 // 短路 --version（不 import 任何重模块）
 // commander 自动处理 --version 退出
 
+// 卡住求助的两条路互斥（人工 vs 云端），由用户按 flag 二选一；都传时显式提示走哪条，不静默。
+//   --ask-when-stuck  → 人工：TUI 粘贴思路 / --once 停机写困境报告 + exit=3 等外部 --strategy
+//   --consult-cloud   → 云端：脱敏问云端顾问拿思路自动续跑
+// 两者都开 → 云端优先（用户已显式选了更强的自动路径），忽略 --ask-when-stuck。
+if (opts['consultCloud'] && opts['askWhenStuck']) {
+  process.stderr.write(
+    '\x1b[33m⚠ --consult-cloud 与 --ask-when-stuck 互斥（卡住求助只能有一个来源）：本次走【云端顾问】，' +
+      '忽略 --ask-when-stuck 的人工粘贴/停机。只要人工那条就别加 --consult-cloud。\x1b[0m\n',
+  );
+}
+
 // 混合后端顾问参数（三种运行模式共用）：默认关，仅 --consult-cloud 时生效。
 const advisorOpts = {
   consultCloud: !!opts['consultCloud'],
