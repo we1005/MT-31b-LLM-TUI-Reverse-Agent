@@ -7,6 +7,7 @@
 import { type LanguageModel, type ModelMessage, streamText } from 'ai';
 import { EventEmitter } from 'node:events';
 import { Budget } from './budget.ts';
+import { decideGuard, type GuardTrigger, guardMode } from './guards.ts';
 import { Ledger, type LedgerState } from './memory/ledger.ts';
 import type { Approval, ToolRegistry } from './tools/index.ts';
 
@@ -197,6 +198,10 @@ export class Agent extends EventEmitter {
   /** grep 空转检测：上次的 (reads+hops)（不含 greps）+ 连续只 grep 不读新代码/不连新跳的步数。 */
   private lastReadHop = 0;
   private readHopStallSteps = 0;
+  /** signal-gated 守卫(框架化 MVP-1)：各 trigger 已注入的 CHECKPOINT 次数(宽限 MAX_CHECKPOINTS 后才资源上限收尾)。 */
+  private stallCheckpoints = 0;
+  private readHopCheckpoints = 0;
+  private checkpointsTotal = 0;
   /** 去重后的成功 shell 命令集（shell ls/find 探目录是合法进展，计入 stall 进度度量，避免误杀 shell 导航）。 */
   private readonly shellCmdsSeen = new Set<string>();
   /** 组件埋点计分卡聚合量（收尾 emit 一行 [SCORECARD] 供逐组件打分）。 */
@@ -273,6 +278,8 @@ export class Agent extends EventEmitter {
     this.toolCallTotal = 0;
     this.dedupHits = 0;
     this.explorationNudges = 0;
+    this.stallCheckpoints = 0;
+    this.readHopCheckpoints = 0;
     this.wrapNudged = false;
     // 注：ledger 是会话级累积（跨轮保留已确认链路），不在每轮重置。
   }
@@ -415,7 +422,7 @@ export class Agent extends EventEmitter {
       'warn',
       `[SCORECARD] steps=${this.stepCount} ledger(hops=${ms.hops} ✓${ms.corroborated} reads=${ms.reads} greps=${ms.greps})` +
         ` cache_avg=${cacheAvg}% cache_min=${cacheMin}% max_ctx=${this.maxCtx} folded=${this.foldedIds.size} dedup=${this.dedupHits}` +
-        ` nudges=${this.nudgesTotal} explore_nudges=${this.explorationNudges} stall=${this.stallTriggered ? 1 : 0}` +
+        ` nudges=${this.nudgesTotal} checkpoints=${this.checkpointsTotal} guard=${guardMode()} explore_nudges=${this.explorationNudges} stall=${this.stallTriggered ? 1 : 0}` +
         ` forced=${this.forcedFinish ? 1 : 0} escalations=${this.escalationCount} wrap=${this.wrapFinished ? 1 : 0} conclusion=${conclusion ? 1 : 0}` +
         // 介入指标：agent 原地打转/需干预的总次数(越少越好=越顺、越少需强模型/用户介入)。
         ` interventions=${this.nudgesTotal + this.explorationNudges + (this.stallTriggered ? 1 : 0) + (this.forcedFinish ? 1 : 0) + this.escalationCount}`,
@@ -559,6 +566,56 @@ export class Agent extends EventEmitter {
     return 'forced';
   }
 
+  /**
+   * signal-gated 守卫落地（框架化 MVP-1）：stall/readHopStall 触发、且 stuckIntervene 回退到 'forced' 后，
+   * **不再一律强制收尾**，改由纯函数 decideGuard 决定：
+   * - checkpoint：注入"明确下一步（先去 read 方法体 / 二选一）"+ 重置该 trigger 计数给预算，**不设 forcedFinish**；
+   * - finish：仅在资源硬上限（ctx/步数逼顶）或 CHECKPOINT 宽限用尽时收尾，消息标注"资源上限而非任务完成"。
+   * `REV_GUARD_MODE=count` 退回旧的即时强制收尾（A/B 对照）。调用方在其后统一 `continue`。
+   */
+  private applyStuckGuard(trigger: GuardTrigger, ms: { reads: number; greps: number; hops: number }): void {
+    const checkpoints = trigger === 'stall' ? this.stallCheckpoints : this.readHopCheckpoints;
+    const dec = decideGuard(
+      {
+        trigger,
+        reads: ms.reads,
+        greps: ms.greps,
+        hops: ms.hops,
+        checkpointsIssued: checkpoints,
+        // 硬上限：真实 ctx 超顶 或 步数逼近 maxSteps。只有这两种"资源"信号才允许 finish。
+        hardCeilingHit: this.contextTokens() > this.opts.ctxCeiling || this.stepCount >= this.opts.maxSteps - 2,
+        // 触发点=进度计数已停，定义上本步无新 read/hop；置 false（continue 分支不会命中，仅防御）。
+        productiveRecently: false,
+      },
+      guardMode(),
+    );
+    this.emit('warn', `[guard] ${dec.reason}`);
+    if (dec.kind === 'continue') {
+      // 防御：真有进展则重置计数避免立即重触发（当前 productiveRecently=false 不会走到）。
+      if (trigger === 'stall') this.stallSteps = 0;
+      else this.readHopStallSteps = 0;
+      return;
+    }
+    const draft = this.ledger.hopCount() ? `\n\n已确认链路草稿：\n${this.ledger.renderChainGraph()}` : '';
+    if (dec.kind === 'checkpoint') {
+      if (trigger === 'stall') {
+        this.stallCheckpoints++;
+        this.stallSteps = 0; // 给预算：重置计数，让它有空间执行 checkpoint 指定的下一步（去读码）
+      } else {
+        this.readHopCheckpoints++;
+        this.readHopStallSteps = 0;
+      }
+      this.checkpointsTotal++;
+      this.nudgesTotal++;
+      this.messages.push({ role: 'user', content: (dec.message ?? '') + draft });
+      return;
+    }
+    // finish
+    this.forcedFinish = true;
+    this.stallTriggered = true;
+    this.messages.push({ role: 'user', content: (dec.message ?? '') + draft });
+  }
+
   /** 跑主循环，直到 LLM 不再要 tool 或撞到 maxSteps */
   async run(): Promise<void> {
     while (this.stepCount < this.opts.maxSteps) {
@@ -595,18 +652,8 @@ export class Agent extends EventEmitter {
             this.emit('done', 'stuck_halt');
             return;
           }
-          this.forcedFinish = true;
-          this.stallTriggered = true;
-          this.emit('warn', `连续 ${this.stallSteps} 步无新进展(原地打转)，强制收尾报告已确认证据`);
-          this.messages.push({
-            role: 'user',
-            content:
-              `你已连续 ${this.stallSteps} 步没有任何新进展（在重复无效操作，如反复读不存在/读过的文件）。停止一切工具调用，` +
-              '立即用已确认的证据输出以「## 最终结论」开头的答案；把已追出的每一跳写成 `A.方法 → B.方法 | 证据 类:行` 链路图，' +
-              '未证实的环节标"待确认"给最佳推断。不要再调用任何工具。' +
-              '【反幻觉铁律】只基于你实际 read_file 读到并能引用 file:line 的内容下结论；没读到/没定位到的一律明说"未能证实"，严禁编造代码里不存在的机制/字节码/类名——找不到远好于瞎编。' +
-              (this.ledger.hopCount() ? `\n\n已确认链路草稿：\n${this.ledger.renderChainGraph()}` : ''),
-          });
+          // signal-gated 守卫（框架化 MVP-1）：不再一律强制收尾，按 decideGuard 注入 CHECKPOINT / 资源上限收尾。
+          this.applyStuckGuard('stall', ms);
           continue;
         }
 
@@ -628,17 +675,8 @@ export class Agent extends EventEmitter {
             this.emit('done', 'stuck_halt');
             return;
           }
-          this.forcedFinish = true;
-          this.stallTriggered = true;
-          this.emit('warn', `连续 ${this.readHopStallSteps} 步只 grep 未读新代码/未连新跳（搜不到目标空转），强制收尾`);
-          this.messages.push({
-            role: 'user',
-            content:
-              '你连续多步在反复 grep，却没有读进任何新代码、也没连出新的一跳——很可能在搜一个定位不到的目标。' +
-              '停止搜索，立即用已确认证据输出以「## 最终结论」开头的答案（把已追出的跳写成链路图，未证实的标"待确认"给最佳推断）。不要再调用工具。' +
-              '【反幻觉铁律】只基于你实际 read_file 读到并能引用 file:line 的内容下结论；没读到/没定位到的明说"未能证实"，严禁编造代码里不存在的机制/字节码/类名——找不到远好于瞎编。' +
-              (this.ledger.hopCount() ? `\n\n已确认链路草稿：\n${this.ledger.renderChainGraph()}` : ''),
-          });
+          // signal-gated 守卫（框架化 MVP-1）：grep 空转不再一律强制收尾——先注入"停 grep、去 read 方法体"CHECKPOINT。
+          this.applyStuckGuard('readHopStall', ms);
           continue;
         }
 

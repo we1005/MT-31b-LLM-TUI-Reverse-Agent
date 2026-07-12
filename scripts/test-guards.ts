@@ -122,10 +122,33 @@ agent2.on('toolDenied', (_id: string, _n: string, reason: string) => warns2.push
 agent2.addUserMessage('追一条链路');
 await agent2.run();
 const lastStep = Number((warns2.join(' ').match(/step=(\d+)/g) ?? ['step=0']).pop()!.split('=')[1]);
-ok('R7: grep 空转止损触发', warns2.some((w) => w.includes('只 grep 未读新代码')));
+// signal 模式(默认)：grep 空转先注入 CHECKPOINT 宽限、再资源上限收尾（不再第一次触发就强制收尾）。
+ok('R7: grep 空转守卫触发(signal)', warns2.some((w) => w.includes('readHopStall')));
+ok('R7: 收尾前先注入了 CHECKPOINT 宽限', warns2.some((w) => /checkpoints=[1-9]/.test(w)) || warns2.some((w) => w.includes('CHECKPOINT')));
 ok('R6: forcedFinish 后工具被硬禁', warns2.some((w) => w.includes('DENIED:forced_finish_tools_disabled')));
-ok('R6: 有界终止(远早于 maxSteps=25，未跑飞)', lastStep < 15);
+ok('R6: 有界终止(仍远早于 maxSteps=25，未跑飞)', lastStep < 25);
 ok('R6/R7: 最终收尾出 SCORECARD', warns2.some((w) => w.includes('SCORECARD')));
+
+// ---- A/B 对照：count 模式(REV_GUARD_MODE=count)=旧行为,第一次触发就强制收尾,终止更早 ----
+process.env['REV_GUARD_MODE'] = 'count';
+gi = 0;
+const warnsC: string[] = [];
+const agentC = new Agent({
+  model: scriptedGrepSpinModel(),
+  tools: grepTools,
+  budget: new Budget(80000),
+  systemPrompt: 'test',
+  approve: async () => true,
+  maxSteps: 25,
+});
+agentC.on('warn', (m: string) => warnsC.push(m));
+agentC.on('toolDenied', (_id: string, _n: string, reason: string) => warnsC.push(`DENIED:${reason}`));
+agentC.addUserMessage('追一条链路');
+await agentC.run();
+const lastStepC = Number((warnsC.join(' ').match(/step=(\d+)/g) ?? ['step=0']).pop()!.split('=')[1]);
+delete process.env['REV_GUARD_MODE'];
+ok('A/B: count 模式也能有界终止(SCORECARD)', warnsC.some((w) => w.includes('SCORECARD')));
+ok('A/B: count 模式无 CHECKPOINT 宽限(终止不晚于 signal)', lastStepC <= lastStep, `count=${lastStepC} signal=${lastStep}`);
 
 // ---- 测卡住求助（--ask-when-stuck）：grep 空转 + escalateWhenStuck + askStrategy 返回思路 ----
 const warns3: string[] = [];
