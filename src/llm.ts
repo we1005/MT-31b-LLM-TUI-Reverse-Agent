@@ -30,37 +30,43 @@ function reasoningRewriteFetch(baseFetch: typeof fetch = fetch): typeof fetch {
 
     let thinkOpen = false;
     let thinkClosed = false;
-    const transform = new TransformStream<string, string>({
-      transform(chunk, ctrl) {
-        const out: string[] = [];
-        for (const line of chunk.split('\n')) {
-          if (!line.startsWith('data: ') || line.includes('[DONE]')) {
-            out.push(line);
-            continue;
-          }
-          try {
-            const j = JSON.parse(line.slice(6));
-            const d = j.choices?.[0]?.delta;
-            if (d) {
-              const rc = d.reasoning_content;
-              if (rc != null && rc !== '') {
-                // reasoning 增量 → 开 <think>（首次）+ 内容，删掉非标字段
-                d.content = (thinkOpen ? '' : ((thinkOpen = true), '<think>')) + rc;
-                delete d.reasoning_content;
-              } else if (d.content != null && d.content !== '' && thinkOpen && !thinkClosed) {
-                // 第一个真正的 content → 先闭合 </think>
-                d.content = `</think>${d.content}`;
-                thinkClosed = true;
-              }
-            }
-            out.push(`data: ${JSON.stringify(j)}`);
-          } catch {
-            out.push(line);
+    // 跨 chunk 行缓冲：TransformStream 的 chunk 边界**不保证**落在换行处（可能切在半个 `data: {…}` 里）。
+    // 原实现直接 chunk.split('\n') → 半行 JSON.parse 失败 → reasoning 增量被丢/坏。改为缓冲未完成行、只处理完整行。
+    // 字段名借鉴 pi-ai(openai-completions.ts):按 reasoning_content / reasoning / reasoning_text 顺序取首个非空(覆盖更多本地端点)。
+    let buf = '';
+    const processLine = (line: string): string => {
+      if (!line.startsWith('data: ') || line.includes('[DONE]')) return line;
+      try {
+        const j = JSON.parse(line.slice(6));
+        const d = j.choices?.[0]?.delta;
+        if (d) {
+          const rc = d.reasoning_content ?? d.reasoning ?? d.reasoning_text;
+          if (rc != null && rc !== '') {
+            d.content = (thinkOpen ? '' : ((thinkOpen = true), '<think>')) + rc;
+            d.reasoning_content = undefined;
+            d.reasoning = undefined;
+            d.reasoning_text = undefined;
+          } else if (d.content != null && d.content !== '' && thinkOpen && !thinkClosed) {
+            d.content = `</think>${d.content}`;
+            thinkClosed = true;
           }
         }
-        ctrl.enqueue(out.join('\n'));
+        return `data: ${JSON.stringify(j)}`;
+      } catch {
+        return line; // 完整行仍解析失败才原样透传（缓冲后这应极少见）
+      }
+    };
+    const transform = new TransformStream<string, string>({
+      transform(chunk, ctrl) {
+        buf += chunk;
+        const nl = buf.lastIndexOf('\n');
+        if (nl < 0) return; // 整块都还不是完整行 → 继续缓冲
+        const complete = buf.slice(0, nl + 1); // 到最后一个换行为止都是完整行
+        buf = buf.slice(nl + 1); // 剩余的半行留到下次
+        ctrl.enqueue(complete.split('\n').map(processLine).join('\n'));
       },
       flush(ctrl) {
+        if (buf) ctrl.enqueue(buf.split('\n').map(processLine).join('\n')); // 冲掉缓冲里最后一行
         // 流结束时 reasoning 从未闭合（回复全是思考、content 为空）→ 补一个闭合标签，避免 <think> 悬空
         if (thinkOpen && !thinkClosed) {
           ctrl.enqueue(
