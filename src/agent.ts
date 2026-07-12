@@ -720,20 +720,26 @@ export class Agent extends EventEmitter {
         // 这个判断小模型仍没有——会一直追到 maxSteps 不收尾）。台账≥enoughHops 且还没写最终结论 →
         // 主动提示"主干够了就拼台账收尾"（一次性，不硬砍，agent 仍可判断确需再追）。
         const hopN = this.ledger.hopCount();
+        // MVP-1.1（治 signal 模式简单定点题过度探索）：追链型 hops≥enoughHops **或** 定点定位型
+        //   （hops 恒 0 但已 read≥enoughHops 个类）→ 一次性收敛提示。软化守卫去掉了强制早停后，
+        //   Qwen 缺"够了就收"的自律会多翻（实测 medium 定点题 signal 3× 慢于 count）；此 nudge 补上
+        //   "证据够就写结论"的提示（**不硬砍**，agent 可继续），把速度追回而不牺牲深调查能力。
+        const locateEnough = hopN === 0 && ms.reads >= this.opts.enoughHops;
         if (
           !this.forcedFinish && // 已强制收尾时不再发"评估是否收尾"软提示，避免与 forcedFinish 硬指令信号打架 + 白耗一步
           !this.wrapNudged &&
-          hopN >= this.opts.enoughHops &&
+          (hopN >= this.opts.enoughHops || locateEnough) &&
           !/##\s*最终结论/.test(this.messages.map((m) => (typeof m.content === 'string' ? m.content : '')).join(''))
         ) {
           this.wrapNudged = true;
-          this.emit('warn', `台账已记 ${hopN} 跳，提示评估是否可收尾拼图`);
+          const desc = hopN >= this.opts.enoughHops ? `已记录 ${hopN} 跳台账，链路主干可能已通` : `已 read ${ms.reads} 个类`;
+          this.emit('warn', `${desc}，提示评估是否可收尾`);
           this.messages.push({
             role: 'user',
             content:
-              `你已经记录了 ${hopN} 跳台账（见进度台账），链路主干可能已经通了。请评估：如果从入口到终点的主链已连上，` +
-              '就立刻把逐行台账拼成以「## 最终结论」开头的链路图收尾，别再为支线细节继续追；' +
-              '只有当主链确实还缺关键的中间跳时，才继续追那一跳。',
+              `你${desc}。请评估：如果已经能用 file:line 证据回答用户的问题（如已定位到目标类/已连上主链），` +
+              '就**立刻**输出以「## 最终结论」开头的完整答案收尾，别再为支线细节继续翻；' +
+              '只有当确实还缺某个关键类/关键跳才继续追那一个。（这是提示不是强制，你自己判断。）',
           });
           continue;
         }
