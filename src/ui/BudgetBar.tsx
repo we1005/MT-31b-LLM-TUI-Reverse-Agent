@@ -21,7 +21,7 @@ export function BudgetBar({ used, max }: BudgetBarProps) {
   const empty = barWidth - filled;
 
   return (
-    <box flexDirection="row" gap={1}>
+    <box flexDirection="row" gap={1} flexShrink={0}>
       <text fg={color}>{'█'.repeat(filled)}</text>
       <text fg="gray">{'░'.repeat(empty)}</text>
       <text fg={color}>

@@ -122,6 +122,38 @@ await flush(() => mockInput.pressKey('n'));
 await pn;
 ok('审批: 按 n → resolve(false)（两分支都正确=稳定）', approvedN === false, `n=${approvedN}`);
 
+// ---------- 渲染回归:防白屏 + 防笔记框重叠(锁住 height/flexShrink 两个修复)----------
+// 之前的 bug:外层 box 缺 height → scrollbox 吃满屏挤出输入/预算/笔记 → 整屏白;笔记区被压扁 → 行重叠。
+{
+  const { writeFileSync } = await import('node:fs');
+  const notesPath = '/tmp/tui-render-notes.md';
+  writeFileSync(notesPath, '# 渲染回归笔记\n- 甲行AAA\n- 乙行BBB\n- 丙行CCC\n');
+  const agent2 = new EventEmitter() as any;
+  const { renderer: r2, renderOnce: ro2, captureCharFrame: cap2 } = (await testRender(
+    createElement(App, { agent: agent2, notesPath, onSubmit: async () => {}, approvalChannel: createApprovalChannel() }),
+    { width: 90, height: 26 },
+  )) as any;
+  await act(async () => {
+    await ro2();
+  });
+  await act(async () => {
+    await ro2();
+  });
+  const frame = cap2();
+  const nonBlank = [...frame].filter((c) => c.trim()).length;
+  ok('渲染: 整 App 非空白(防白屏 — height 约束修复)', nonBlank > 50, `nonBlank=${nonBlank}`);
+  ok('渲染: 输入占位符可见', frame.includes('输入任务'), '');
+  ok('渲染: 预算条可见', frame.includes('0k') || frame.includes('/80'), '');
+  // 笔记 4 行的独特标记都在 = 未被压扁重叠(flexShrink 修复)
+  const notesTokens = ['甲行AAA', '乙行BBB', '丙行CCC'];
+  ok('渲染: 笔记各行不重叠(flexShrink 修复,3 独特标记齐)', notesTokens.every((t) => frame.includes(t)), notesTokens.filter((t) => !frame.includes(t)).join(',') || 'all-present');
+  try {
+    r2.destroy?.();
+  } catch {
+    /* ignore */
+  }
+}
+
 console.log(`\n结果: ${pass} passed, ${fail} failed`);
 console.log('== 结论: TUI 交互可程序化测试;输入层 CJK 字节完整(无乱码/缺失);审批双分支稳定。像素渲染正确性见真实终端(见文档已知限制)。 ==');
 try {

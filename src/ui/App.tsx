@@ -259,7 +259,7 @@ export function App({ agent, notesPath, onSubmit, approvalChannel, strategyChann
       <BudgetBar used={state.used} max={state.max} />
 
       {/* 输入区 */}
-      <box flexDirection="row" gap={1} paddingX={1} marginTop={0}>
+      <box flexDirection="row" gap={1} paddingX={1} marginTop={0} flexShrink={0}>
         <text fg={state.busy ? 'yellow' : 'cyan'}>
           {state.busy ? '⏳' : '›'}
         </text>

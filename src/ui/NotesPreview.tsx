@@ -40,7 +40,7 @@ export function NotesPreview({ path, pollMs = 3000, maxLines = 6 }: NotesPreview
 
   if (!exists) {
     return (
-      <box paddingX={1}>
+      <box paddingX={1} flexShrink={0}>
         <text fg="gray">
           <em>笔记：{path}（尚未创建）</em>
         </text>
@@ -49,7 +49,7 @@ export function NotesPreview({ path, pollMs = 3000, maxLines = 6 }: NotesPreview
   }
 
   return (
-    <box flexDirection="column" border borderStyle="single" borderColor="gray" paddingX={1}>
+    <box flexDirection="column" border borderStyle="single" borderColor="gray" paddingX={1} flexShrink={0}>
       <text fg="gray">
         <b>📝 {path}</b> (last {tail.length}/{maxLines} lines)
       </text>
