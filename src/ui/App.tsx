@@ -121,7 +121,7 @@ export interface AppProps {
 
 export function App({ agent, notesPath, onSubmit, approvalChannel, strategyChannel }: AppProps) {
   const [state, dispatch] = useReducer(reducer, init);
-  const { width } = useTerminalDimensions();
+  const { width, height } = useTerminalDimensions();
   const inputRef = useRef<{ value: string } | null>(null);
 
   // 订阅 approval 请求
@@ -247,7 +247,8 @@ export function App({ agent, notesPath, onSubmit, approvalChannel, strategyChann
   );
 
   return (
-    <box flexDirection="column" width={width} flexGrow={1}>
+    // height={height} 关键:必须显式约束到终端高度,否则 scrollbox(flexGrow) 会吃满屏、把 notes/budget/输入框挤出可视区→白屏(根 box 非 flex 容器,flexGrow 约束不住)。
+    <box flexDirection="column" width={width} height={height}>
       {/* 消息流 */}
       <MessageList messages={state.messages} />
 
