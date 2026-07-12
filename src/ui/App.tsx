@@ -224,7 +224,11 @@ export function App({ agent, notesPath, onSubmit, approvalChannel, strategyChann
 
   const handleSubmit = useCallback(
     async (text: string) => {
-      if (!text.trim()) return;
+      // 空/空白提交:忽略(不下发 onSubmit)但**仍清空输入框**——否则残留空白会前缀污染下一条输入(实测 quirk)。
+      if (!text.trim()) {
+        dispatch({ type: 'input', v: '' });
+        return;
+      }
       dispatch({ type: 'msg', m: { id: nanoid(), role: 'user', text } });
       dispatch({ type: 'input', v: '' });
       dispatch({ type: 'busy', v: true });

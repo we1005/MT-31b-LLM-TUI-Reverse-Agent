@@ -91,6 +91,17 @@ await flush(() => mockInput.pressEnter());
 ok('交互: 注入按键→真<App>→onSubmit 触发（TUI 可测）', submitted.length === 1);
 ok('交互: CJK/特殊字符经 input→onSubmit 字节完整（无乱码/无缺失）', submitted[0] === CJK, `got=${JSON.stringify(submitted[0]?.slice(0, 40))}`);
 
+// 稳定性1：空/空白输入被忽略（不触发 onSubmit，防空提交刷屏）
+await flush(() => mockInput.typeText('   '));
+await flush(() => mockInput.pressEnter());
+ok('稳定: 空白输入被忽略（onSubmit 不触发）', submitted.length === 1, `len=${submitted.length}`);
+
+// 稳定性2：多轮提交按序到达（turn 流转不串/不丢）
+const MSG2 = '第二条消息：定位 MCP 入口类';
+await flush(() => mockInput.typeText(MSG2));
+await flush(() => mockInput.pressEnter());
+ok('稳定: 多轮提交按序到达 onSubmit（不串/不丢）', submitted.length === 2 && submitted[1] === MSG2, JSON.stringify(submitted.map((s) => s.slice(0, 12))));
+
 // 2) 审批稳定性：y → true
 let approvedY: boolean | null = null;
 const py = withTimeout(approvalChannel.ask('shell', { cmd: 'jadx -d out a.apk' }) as Promise<boolean>, 4000, null as any).then((v) => {
