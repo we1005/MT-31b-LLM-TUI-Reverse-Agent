@@ -7,7 +7,8 @@
  * 核心思想（治实测最大痛点"小模型不自律写台账/追对却不收尾/重复读同类"）：
  * - **系统维护，不指望模型自律**：agent 每次 read/grep 后，系统自动 observeToolResult 抽取 reads/greps，
  *   不靠模型自觉写。
- * - **带外**：ledger 不进 messages（只在 system prompt 尾部渲染），完全绕开 v6 tool-call↔result 配对 bug。
+ * - **带外**：ledger 不进 messages 持久历史，完全绕开 v6 tool-call↔result 配对 bug。
+ *   **SWA 铁律**：台账每步临时拼到 messages **末尾** ephemeral、**绝不进 system 头部**（进 system 每步破前缀缓存，实测 0%）。
  * - **verbatim**：类名/方法/行号/URL 是逆向产物，一律原样存，绝不 LLM 转述。
  * - **收尾 O(1)**：链路图从已积累的 hops 直接渲染，不在巨上下文里重推。
  */
@@ -229,7 +230,7 @@ export class Ledger {
     return this.greps.some((g) => g.pattern === pattern && g.path === path);
   }
 
-  /** 渲染进 system prompt 尾部的紧凑台账（有界，默认 ≤1200 token 估算）。 */
+  /** 渲染紧凑台账（有界）。注意：由 agent.callLLM 拼到 **messages 末尾** ephemeral，**绝不进 system 头部**（SWA 铁律）。 */
   render(maxChars = 4000): string {
     const lines: string[] = [];
     if (this.goal) lines.push(`目标: ${this.goal}`);
