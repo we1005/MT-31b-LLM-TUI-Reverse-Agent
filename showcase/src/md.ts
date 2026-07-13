@@ -13,8 +13,19 @@ import ini from 'highlight.js/lib/languages/ini'
 import diff from 'highlight.js/lib/languages/diff'
 import markdownLang from 'highlight.js/lib/languages/markdown'
 import plaintext from 'highlight.js/lib/languages/plaintext'
+import java from 'highlight.js/lib/languages/java'
+import kotlin from 'highlight.js/lib/languages/kotlin'
+import go from 'highlight.js/lib/languages/go'
+import dart from 'highlight.js/lib/languages/dart'
 
-for (const [name, lang] of Object.entries({ bash, sh: bash, shell: bash, typescript, ts: typescript, javascript, js: javascript, json, python, py: python, xml, html: xml, yaml, yml: yaml, ini, toml: ini, diff, markdown: markdownLang, md: markdownLang, plaintext, text: plaintext })) {
+for (const [name, lang] of Object.entries({
+  bash, sh: bash, shell: bash, zsh: bash,
+  typescript, ts: typescript, tsx: typescript,
+  javascript, js: javascript, jsx: javascript,
+  json, python, py: python, xml, html: xml, yaml, yml: yaml, ini, toml: ini, diff,
+  markdown: markdownLang, md: markdownLang, plaintext, text: plaintext,
+  java, kotlin, kt: kotlin, go, golang: go, dart,
+})) {
   if (!hljs.getLanguage(name)) hljs.registerLanguage(name, lang as never)
 }
 
@@ -29,12 +40,13 @@ export const md: MarkdownIt = new MarkdownIt({
   linkify: true,
   typographer: false,
   highlight(str, lang) {
-    if (lang === 'mermaid') {
+    const l = (lang || '').toLowerCase().trim()
+    if (l === 'mermaid') {
       return `<pre class="mermaid">${md.utils.escapeHtml(str)}</pre>`
     }
-    if (lang && hljs.getLanguage(lang)) {
+    if (l && hljs.getLanguage(l)) {
       try {
-        return `<pre class="code"><code class="hljs language-${lang}">${hljs.highlight(str, { language: lang }).value}</code></pre>`
+        return `<pre class="code"><code class="hljs language-${l}">${hljs.highlight(str, { language: l }).value}</code></pre>`
       } catch {
         /* fallthrough */
       }
