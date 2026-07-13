@@ -37,21 +37,6 @@ type Kind = 'docs' | 'wiki'
 const rawDocs = import.meta.glob('./content/docs/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const rawWiki = import.meta.glob('./content/wiki/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-  themeVariables: {
-    background: '#0e1016',
-    primaryColor: '#171a22',
-    primaryTextColor: '#e8e8ee',
-    primaryBorderColor: '#8b8bf5',
-    lineColor: '#7c7e8c',
-    fontSize: '14px',
-  },
-})
-
 function slugFromPath(p: string): string {
   return decodeURIComponent(p.split('/').pop() || '').replace(/\.md$/, '')
 }
