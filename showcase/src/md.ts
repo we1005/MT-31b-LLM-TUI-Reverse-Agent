@@ -46,6 +46,31 @@ export const md: MarkdownIt = new MarkdownIt({
   slugify: (s: string) => s.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^\w一-鿿-]/g, ''),
 })
 
+// 维基链接 [[Page Name]] / [[Target|Label]] → 站内锚点 #Target-with-hyphens
+// GitHub wiki 语法 markdown-it 不认，会渲染成字面括号。作为 inline 规则实现，自动跳过代码。
+md.inline.ruler.before('link', 'wikilink', (state, silent) => {
+  const start = state.pos
+  const src = state.src
+  if (src.charCodeAt(start) !== 0x5b || src.charCodeAt(start + 1) !== 0x5b) return false
+  const end = src.indexOf(']]', start + 2)
+  if (end < 0) return false
+  const inner = src.slice(start + 2, end)
+  if (!inner || inner.includes('[') || inner.includes('\n')) return false
+  if (!silent) {
+    const pipe = inner.indexOf('|')
+    const target = (pipe >= 0 ? inner.slice(0, pipe) : inner).trim()
+    const label = (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim()
+    const slug = target.replace(/\s+/g, '-')
+    const open = state.push('link_open', 'a', 1)
+    open.attrs = [['href', `#${encodeURIComponent(slug)}`], ['class', 'wikilink']]
+    const txt = state.push('text', '', 0)
+    txt.content = label
+    state.push('link_close', 'a', -1)
+  }
+  state.pos = end + 2
+  return true
+})
+
 // 外链新窗口打开
 const defaultLinkOpen =
   md.renderer.rules.link_open ||
