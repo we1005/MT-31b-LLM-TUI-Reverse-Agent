@@ -36,6 +36,10 @@ def extract_anchors(*texts: str) -> set:
     # 过滤太泛的(纯扩展名/过短)
     return {a for a in anchors if len(a) >= 5}
 
+def alt_texts(alt: dict):
+    """把一个 alt_crack_points 元素 {crack_point?, chain?, grade_keywords?} 展平成 gt_texts（与主组同构）。"""
+    return [alt.get('crack_point', ''), alt.get('chain', ''), ' '.join(alt.get('grade_keywords', []) or [])]
+
 def load_bank(path: str):
     d = json.load(open(path, encoding='utf-8'))
     if isinstance(d, dict) and 'problems' in d:  # bank-multi
@@ -44,6 +48,7 @@ def load_bank(path: str):
                 'id': q['id'],
                 'gt_texts': [q.get('ground_truth', ''), q.get('evidence', '') if isinstance(q.get('evidence'), str) else json.dumps(q.get('evidence', ''), ensure_ascii=False)],
                 'regex': q.get('grading_regex'),
+                'alts': [alt_texts(a) for a in (q.get('alt_crack_points') or [])],
             }
     else:  # bank-crack*
         arr = d if isinstance(d, list) else d.get('questions', [])
@@ -52,6 +57,7 @@ def load_bank(path: str):
                 'id': q['id'],
                 'gt_texts': [q.get('crack_point', ''), q.get('chain', ''), ' '.join(q.get('grade_keywords', []))],
                 'regex': None,
+                'alts': [alt_texts(a) for a in (q.get('alt_crack_points') or [])],
             }
 
 def main():
@@ -63,12 +69,22 @@ def main():
         outp = os.path.join(results_dir, f'{qid}.out')
         ans = open(outp, encoding='utf-8', errors='replace').read() if os.path.exists(outp) else ''
         ans_n = norm(ans)
-        anchors = extract_anchors(*q['gt_texts'])
-        hits = [a for a in anchors if a in ans_n]
-        recall = round(len(hits) / len(anchors), 3) if anchors else None
+        # 主组 + 每个 alt 组各算一次锚点集合与 recall；该题取各组 MAX（记录 winning_group）。
+        # 组顺序固定 [main, alt1, alt2, ...]，平票取靠前者(main 优先) => 确定性、向后兼容(无 alt 时只有 main)。
+        groups = [('main', q['gt_texts'])] + [(f'alt{i+1}', gt) for i, gt in enumerate(q.get('alts') or [])]
+        scored_groups = []  # (name, anchors_set, hits_list, recall)
+        for name, gt in groups:
+            g_anchors = extract_anchors(*gt)
+            g_hits = [a for a in g_anchors if a in ans_n]
+            g_recall = round(len(g_hits) / len(g_anchors), 3) if g_anchors else None
+            scored_groups.append((name, g_anchors, g_hits, g_recall))
+        # 选 recall 最大的组(None 视为最低);平票保留靠前(main)
+        best = max(scored_groups, key=lambda g: (-1.0 if g[3] is None else g[3]))
+        win_name, anchors, hits, recall = best
         regex_hit = bool(re.search(q['regex'], ans)) if q['regex'] else None
         rows.append({
             'id': qid,
+            'winning_group': win_name,
             'anchors_total': len(anchors),
             'anchors_hit': len(hits),
             'anchor_recall': recall,
@@ -84,7 +100,8 @@ def main():
     print(f"bank={summary['bank']} results={summary['results']}  n={len(rows)} scored={len(scored)}  平均锚点召回={mean_recall}")
     for r in rows:
         rc = f"{r['anchor_recall']:.2f}" if r['anchor_recall'] is not None else '  - '
-        print(f"  [{r['id']:38}] recall={rc} ({r['anchors_hit']}/{r['anchors_total']}) {'out✓' if r['has_output'] else 'NO-OUT'}")
+        wg = '' if r.get('winning_group') in (None, 'main') else f" via {r['winning_group']}"
+        print(f"  [{r['id']:38}] recall={rc} ({r['anchors_hit']}/{r['anchors_total']}) {'out✓' if r['has_output'] else 'NO-OUT'}{wg}")
     print(f"\n写入 {out_path}")
 
 if __name__ == '__main__':

@@ -10,3 +10,7 @@ bun.lockb
 docs-resources/jadx-out/
 docs-resources/unzipped/
 docs-resources/apktool-out/
+
+# python
+__pycache__/
+*.pyc
