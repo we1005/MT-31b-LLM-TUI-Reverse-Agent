@@ -1,0 +1,22 @@
+{
+  "name": "rev-agent-showcase",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Netlify 展示站：rev-agent 落地页 + docs-resources 文档浏览 + wiki 美观化",
+  "scripts": {
+    "collect": "node scripts/collect-content.mjs",
+    "dev": "npm run collect && vite",
+    "build": "npm run collect && vite build",
+    "preview": "vite preview --outDir dist"
+  },
+  "devDependencies": {
+    "vite": "^6.0.7"
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0",
+    "markdown-it-anchor": "^9.2.0",
+    "mermaid": "^11.4.1"
+  }
+}

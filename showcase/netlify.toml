@@ -1,0 +1,37 @@
+# Netlify 部署配置 · rev-agent 展示站
+#
+# 本地构建 + 手动部署（推荐，wiki 内容在构建机采集）：
+#   cd showcase && npm install && npm run build
+#   netlify deploy --prod --dir=dist
+#
+# 若连 GitHub 自动部署：build/publish 已写好；但 wiki 内容需已随仓库快照
+# （src/content/ 已提交），collect 脚本对缺失的 wiki 源目录做容错、复用快照。
+
+[build]
+  base = "showcase"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# 多页站：/docs、/wiki 有各自 html，其余回落 landing。
+[[redirects]]
+  from = "/docs"
+  to = "/docs.html"
+  status = 200
+[[redirects]]
+  from = "/wiki"
+  to = "/wiki.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

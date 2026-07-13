@@ -1,0 +1,152 @@
+/* ==========================================================================
+   rev-agent showcase · 共享设计系统
+   风格：暗色「终端夜」× 苹果毛玻璃。近黑画布 + 缓慢极光 mesh + 细网格，
+        霜面玻璃面板，Fraunces 衬线标题 / Inter 正文 / JetBrains Mono 标识符。
+   ========================================================================== */
+
+:root {
+  /* 画布与墨 */
+  --bg: #0a0b0f;
+  --bg-2: #0e1016;
+  --ink: #e8e8ee;
+  --ink-soft: #b7b8c4;
+  --ink-mute: #7c7e8c;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  /* 强调色：靛紫主 + 终端绿（仅用于"已验证/✓"与标识符点缀） */
+  --accent: #8b8bf5;
+  --accent-2: #6d6df0;
+  --term: #46e0a0;
+  --amber: #f5c56b;
+  --rose: #f2789a;
+
+  /* 玻璃 */
+  --glass: rgba(255, 255, 255, 0.045);
+  --glass-2: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(255, 255, 255, 0.11);
+  --glass-hi: rgba(255, 255, 255, 0.10);
+
+  --radius: 20px;
+  --radius-sm: 12px;
+  --maxw: 1120px;
+
+  --font-display: 'Fraunces', 'Noto Serif SC', Georgia, serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Menlo', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* 极光 mesh 背景（固定，缓慢漂移） */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20% -10% -10% -10%;
+  z-index: -2;
+  background:
+    radial-gradient(38% 44% at 18% 12%, rgba(109, 109, 240, 0.28), transparent 62%),
+    radial-gradient(34% 40% at 84% 20%, rgba(70, 224, 160, 0.14), transparent 60%),
+    radial-gradient(46% 50% at 70% 84%, rgba(139, 139, 245, 0.20), transparent 64%),
+    radial-gradient(40% 44% at 30% 88%, rgba(242, 120, 154, 0.10), transparent 60%);
+  filter: blur(30px) saturate(120%);
+  animation: aurora 34s ease-in-out infinite alternate;
+}
+/* 细网格叠加（RE/终端质感） */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(120% 120% at 50% 0%, #000 40%, transparent 92%);
+  -webkit-mask-image: radial-gradient(120% 120% at 50% 0%, #000 40%, transparent 92%);
+  pointer-events: none;
+}
+@keyframes aurora {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-3%, 2%, 0) scale(1.06); }
+  100% { transform: translate3d(2%, -2%, 0) scale(1.03); }
+}
+
+/* ── 版心 ── */
+.wrap { width: 100%; max-width: var(--maxw); margin-inline: auto; padding-inline: 24px; }
+
+/* ── 玻璃 ── */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  box-shadow:
+    0 20px 60px -24px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 var(--glass-hi);
+}
+
+/* ── 排版 ── */
+.display { font-family: var(--font-display); font-weight: 600; line-height: 1.04; letter-spacing: -0.015em; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.26em;
+  text-transform: uppercase; color: var(--accent); font-weight: 500;
+}
+code, .mono { font-family: var(--font-mono); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--ink); }
+
+/* ── 按钮 ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-body); font-weight: 600; font-size: 15px;
+  padding: 12px 22px; border-radius: 999px; cursor: pointer;
+  border: 1px solid transparent; transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s, background .2s;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #0a0b0f;
+  box-shadow: 0 10px 30px -10px rgba(109, 109, 240, 0.6);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 40px -12px rgba(109,109,240,.75); }
+.btn-ghost { background: var(--glass-2); border-color: var(--glass-border); color: var(--ink); }
+.btn-ghost:hover { transform: translateY(-2px); border-color: var(--line-strong); background: rgba(255,255,255,.1); }
+
+/* ── 滚动揭幕（IntersectionObserver 加 .in） ── */
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1); }
+.reveal.in { opacity: 1; transform: none; }
+.reveal[data-d="1"] { transition-delay: .08s; }
+.reveal[data-d="2"] { transition-delay: .16s; }
+.reveal[data-d="3"] { transition-delay: .24s; }
+.reveal[data-d="4"] { transition-delay: .32s; }
+
+/* ── 选中色 ── */
+::selection { background: rgba(139, 139, 245, 0.32); color: #fff; }
+
+/* ── 滚动条 ── */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); background-clip: content-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  body::before { animation: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .btn { transition: none; }
+}
