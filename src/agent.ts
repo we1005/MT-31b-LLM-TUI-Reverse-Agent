@@ -6,7 +6,9 @@
  */
 import { type LanguageModel, type ModelMessage, streamText } from 'ai';
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { Budget } from './budget.ts';
+import { renderFindingsBlock } from './findings.ts';
 import { Ledger, type LedgerState } from './memory/ledger.ts';
 import type { Approval, ToolRegistry } from './tools/index.ts';
 
@@ -104,6 +106,14 @@ export interface AgentOpts {
   maxEscalations?: number;
   /** --once 卡住停机：无交互 askStrategy 回调时，卡住→停机(设 stuckHalted)等外部 --strategy 反哺，而非强制猜。默认 false。 */
   haltWhenStuck?: boolean;
+  /**
+   * --findings-cache（默认关，被批准的最小版）：把工作笔记(notesPath)尾部作「未核验线索」回注到
+   * **末尾 ephemeral 管道**，供跨折叠/跨续传复用之前顺路发现（key/端点/native 跳转等）。
+   * 铁律：零正则抽取、只作最低优先级 context、SWA 只进 messages 末尾（见 renderFindingsBlock）。价值待阶段0闸门实测。
+   */
+  findingsCache?: boolean;
+  /** findingsCache 开启时回读的笔记路径（通常=--notes）；空则不回注。 */
+  notesPath?: string;
 }
 
 /** 判断 LLM 调用错误是否可重试（网络抖动/限流/5xx/超时/abort），据此决定退避重试还是直接 throw（A2）。 */
@@ -240,6 +250,8 @@ export class Agent extends EventEmitter {
       askStrategy: async () => null,
       maxEscalations: 3,
       haltWhenStuck: false,
+      findingsCache: false,
+      notesPath: '',
       ...opts,
     } as Required<AgentOpts>;
     this.systemPrompt = opts.systemPrompt;
@@ -312,14 +324,27 @@ export class Agent extends EventEmitter {
         // 消融开关 REV_AGENT_NO_LEDGER_RENDER=1：不把台账渲染给模型看(内部仍追踪供守卫用)——测「让模型看到台账」本身的价值。
         const led = process.env['REV_AGENT_NO_LEDGER_RENDER'] ? '' : this.ledger.render();
         const ledgerBlock = led ? `【系统进度台账·非用户输入，直接用，别重新推导已确认的跳】\n${led}` : '';
+        // 顺路发现缓存(--findings-cache，默认关)：把笔记尾部作「未核验线索」也拼到末尾 ephemeral。
+        // SWA 铁律：无论 ledgerInSystem 与否，findings 永远只进 messages 末尾、绝不进 system（它是动态内容）。
+        let findingsBlock = '';
+        if (this.opts.findingsCache && this.opts.notesPath) {
+          try {
+            findingsBlock = renderFindingsBlock(readFileSync(this.opts.notesPath, 'utf-8'));
+          } catch {
+            /* 笔记文件还不存在 = 无线索，正常 */
+          }
+        }
         // 消融开关(REV_AGENT_LEDGER_IN_SYSTEM=1)：把台账放回 system 头部(旧/坏做法)——用于 A/B 验证
         // 「台账拼 messages 末尾」这个设计是否真的有用(测前缀缓存命中率差异)。默认关=拼末尾(SWA 铁律)。
         const ledgerInSystem = !!process.env['REV_AGENT_LEDGER_IN_SYSTEM'];
         const sysPrompt = ledgerInSystem && ledgerBlock ? `${this.systemPrompt}\n\n${ledgerBlock}` : this.systemPrompt;
-        const callMessages: ModelMessage[] =
-          !ledgerInSystem && ledgerBlock
-            ? [...this.messages, { role: 'user', content: ledgerBlock }]
-            : this.messages;
+        // 末尾 ephemeral：findings(低优先线索)在前、ledger(权威台账)在后，合并成单条 user 消息（避免双 user 消息）。
+        // findingsBlock 为空(默认/无笔记)时，此拼装与原逻辑逐字节一致 → flag 关时零行为变化。
+        const tailParts = [findingsBlock, ledgerInSystem ? '' : ledgerBlock].filter(Boolean);
+        const trailing = tailParts.join('\n\n');
+        const callMessages: ModelMessage[] = trailing
+          ? [...this.messages, { role: 'user', content: trailing }]
+          : this.messages;
         const result = streamText({
           model: this.opts.model,
           system: sysPrompt,

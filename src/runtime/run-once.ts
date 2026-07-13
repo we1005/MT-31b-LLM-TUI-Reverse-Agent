@@ -35,6 +35,8 @@ export interface RunOnceOpts extends AdvisorWiring {
   askWhenStuck?: boolean;
   /** --strategy：用户/更强模型给的分析思路，前置注入让 agent 按此分析（配合上一轮 exit=3 的困境报告使用）。 */
   strategy?: string;
+  /** --findings-cache（默认关）：un-gate append_note + 把笔记尾部作「未核验线索」回注末尾管道。价值待阶段0闸门实测。 */
+  findingsCache?: boolean;
 }
 
 function color(s: string, code: number): string {
@@ -112,7 +114,7 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
     baseURL: opts.baseURL,
     apiKey: opts.apiKey,
   });
-  const tools = new ToolRegistry(builtinTools(opts.notesPath));
+  const tools = new ToolRegistry(builtinTools(opts.notesPath, !!opts.findingsCache));
   const budget = new Budget(opts.budget ?? DEFAULT_CONFIG.tokenBudget);
 
   process.stderr.write(
@@ -162,6 +164,9 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
     haltWhenStuck: !advisor.enabled && !!opts.askWhenStuck,
     maxEscalations: advisor.enabled ? advisor.maxEscalations : 3,
     ...(advisor.askStrategy ? { askStrategy: advisor.askStrategy } : {}),
+    // 顺路发现缓存（默认关）：把笔记尾部回注末尾 ephemeral 供跨折叠/续传复用顺路发现。
+    findingsCache: !!opts.findingsCache,
+    notesPath: opts.notesPath,
     approve: async (call) => {
       if (opts.autoApprove) {
         process.stderr.write(yellow(`  [auto-approve] ${call.name}(${JSON.stringify(call.args).slice(0, 100)})\n`));

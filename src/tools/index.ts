@@ -19,13 +19,14 @@ export interface Tool<Input = unknown, Output = unknown> {
   execute: (args: Input) => Promise<Output>;
 }
 
-/** 内置工具清单。传 notesPath 则 append_note 的默认写入路径统一到该路径(否则用工具内置默认 /tmp/work-notes.md)。 */
-export function builtinTools(notesPath?: string): Tool[] {
+/** 内置工具清单。传 notesPath 则 append_note 的默认写入路径统一到该路径(否则用工具内置默认 /tmp/work-notes.md)。
+ *  noteAutoApprove=true（顺路发现缓存 --findings-cache 开启时）→ append_note 免审批。 */
+export function builtinTools(notesPath?: string, noteAutoApprove = false): Tool[] {
   return [
     shellTool as unknown as Tool,
     readFileToolDef as unknown as Tool,
     grepTool as unknown as Tool,
-    (notesPath ? makeNoteTool(notesPath) : noteTool) as unknown as Tool,
+    (notesPath || noteAutoApprove ? makeNoteTool(notesPath, noteAutoApprove) : noteTool) as unknown as Tool,
   ];
 }
 

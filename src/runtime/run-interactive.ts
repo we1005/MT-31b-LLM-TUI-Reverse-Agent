@@ -29,6 +29,8 @@ export interface RunInteractiveOpts extends AdvisorWiring {
   notesPath: string;
   /** --ask-when-stuck：卡住时输出困境报告，等用户在 TUI 粘贴更强模型给的思路后续跑。 */
   askWhenStuck?: boolean;
+  /** --findings-cache（默认关）：un-gate append_note（TUI 免审批）+ 把笔记尾部作「未核验线索」回注末尾管道。 */
+  findingsCache?: boolean;
 }
 
 export async function runInteractive(opts: RunInteractiveOpts): Promise<number> {
@@ -54,7 +56,7 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
     baseURL: opts.baseURL,
     apiKey: opts.apiKey,
   });
-  const tools = new ToolRegistry(builtinTools(opts.notesPath));
+  const tools = new ToolRegistry(builtinTools(opts.notesPath, !!opts.findingsCache));
   const budget = new Budget(opts.budget ?? DEFAULT_CONFIG.tokenBudget);
   const approvalChannel = createApprovalChannel();
   const strategyChannel = createStrategyChannel();
@@ -83,6 +85,8 @@ export async function runInteractive(opts: RunInteractiveOpts): Promise<number> 
     escalateWhenStuck: advisor.enabled || !!opts.askWhenStuck,
     maxEscalations: advisor.enabled ? advisor.maxEscalations : 3,
     ...(askStrategy ? { askStrategy } : {}),
+    findingsCache: !!opts.findingsCache,
+    notesPath: opts.notesPath,
   });
   agentRef = agent;
 

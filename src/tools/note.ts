@@ -98,13 +98,15 @@ export async function appendNote(args: NoteInput): Promise<NoteResult> {
   }
 }
 
-/** 工厂:生成把 notesPath 默认值统一到 defaultNotesPath 的 append_note 工具(agent 省略 notesPath 时就写这里)。 */
-export function makeNoteTool(defaultNotesPath: string = DEFAULT_NOTES_PATH): Tool<NoteInput, NoteResult> {
+/** 工厂:生成把 notesPath 默认值统一到 defaultNotesPath 的 append_note 工具(agent 省略 notesPath 时就写这里)。
+ *  autoApprove=true（顺路发现缓存开启时用）→ classify 返回 'auto' 免审批，减 TUI 摩擦让模型肯顺手记发现；
+ *  默认 false 保持"永远审批"原行为。 */
+export function makeNoteTool(defaultNotesPath: string = DEFAULT_NOTES_PATH, autoApprove = false): Tool<NoteInput, NoteResult> {
   return {
     name: 'append_note',
-    description: `把发现追加到工作笔记 ${defaultNotesPath}。首次自动 cp 模板。这是写入类工具，每次调用都会弹审批。`,
+    description: `把发现追加到工作笔记 ${defaultNotesPath}。首次自动 cp 模板。${autoApprove ? '' : '这是写入类工具，每次调用都会弹审批。'}`,
     inputSchema: noteInputSchemaFor(defaultNotesPath),
-    classify: () => 'ask', // 永远要审批
+    classify: () => (autoApprove ? 'auto' : 'ask'), // 默认永远审批；顺路发现缓存开启则自动放行
     // 兜底:即便 args.notesPath 缺失(极端情况),也用配置的默认路径而非硬编码 /tmp。
     execute: (args) => appendNote({ ...args, notesPath: args.notesPath ?? defaultNotesPath }),
   };

@@ -40,6 +40,7 @@ const program = new Command()
   .option('--advisor-api-key <key>', '顾问 API key（云端后端用；缺省从 env ANTHROPIC/OPENAI/ARK_API_KEY）')
   .option('--redact-level <0|1|2>', '脱敏档：0=仅URL/IP/key/路径 1=+包名类名方法名 2=最严(默认)', '2')
   .option('--max-consults <n>', '顾问调用次数上限（防无限求助循环）', '3')
+  .option('--findings-cache', '顺路发现缓存（默认关）：append_note 免审批 + 把笔记尾部作"未核验线索"回注，供跨折叠/续传复用顺路发现')
   .allowExcessArguments(false);
 
 await program.parseAsync(process.argv);
@@ -124,6 +125,7 @@ const exitCode =
         notesPath: opts['notes'] as string,
         askWhenStuck: !!opts['askWhenStuck'],
         strategy: opts['strategy'] as string | undefined,
+        findingsCache: !!opts['findingsCache'],
         ...advisorOpts,
       })
     : await runInteractive({
@@ -138,6 +140,7 @@ const exitCode =
         budget: Number(opts['budget']),
         notesPath: opts['notes'] as string,
         askWhenStuck: !!opts['askWhenStuck'],
+        findingsCache: !!opts['findingsCache'],
         ...advisorOpts,
       });
 
