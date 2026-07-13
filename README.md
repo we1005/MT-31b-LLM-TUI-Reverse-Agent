@@ -198,13 +198,23 @@ bun src/index.tsx --web 8080 --workdir <源码树>   # 指定端口 + 逆向工�
 | `--web [port]` | 🆕 Web 前端模式（浏览器交互，Bun.serve WebSocket，默认端口 5178） |
 | `-V, --version` | 打印版本立即退出（<200ms，不 import 重模块） |
 
+### 🔧 环境变量开关（框架化 MVP-0..4；均为消融/回退用，默认见括号）
+
+| env | 作用 |
+|---|---|
+| `REV_GUARD_MODE=count` | 守卫回退到旧的 count-gated 即时强制收尾（默认 `signal`：证据质量门控，难题不早停） |
+| `REV_PLAYBOOK=1` | 开启栈感知 playbook 注入（**默认关**：n=5+扩样本消融证 5 道 crack 题 ON 无一更好，默认净负） |
+| `REV_LEARN_PLAYBOOK=1` | 开启 MVP-4 从解出轨迹自动生长 learned playbook 落盘 `~/.config`（默认关，避免意外写盘） |
+| `REV_AGENT_LEDGER_IN_SYSTEM=1` | 台账放回 system 头部（旧/坏做法，仅 A/B 前缀缓存测；默认拼 messages 末尾＝SWA 铁律） |
+| `REV_AGENT_NO_LEDGER_RENDER=1` | 不把台账渲染给模型看（内部仍追踪供守卫用；测「让模型看到台账」本身的价值） |
+
 ### ✅ 跑验收
 
 ```bash
+bun run test          # 全离线单测套件（136 断言：守卫/signal/脱敏/顾问/corpus/playbook/scorer）
 bun run demo          # MVP 验收 5 项（scripts/demo.sh）
 bash scripts/test-resume.sh   # V0.3 续传验收
 bun scripts/test-mcp.ts       # MCP server 端到端
-bun run scripts/test-guards.ts  # 健壮性守卫确定性测试（16/16）
 ```
 
 ---
@@ -269,15 +279,16 @@ flowchart LR
 > ⚠️ **方法论铁律**：本地模型 temp>0 单跑聚合 A/B 是噪声（双峰）——消融必须**同题多 seed 取中位数 + 按题型分指标 + 单变量受控**。据此**有据排除**了 2b-2 写入即落盘 / 阶段4 全量 PageRank / LLM 摘要层（无证据表明需要=不加）。
 > **≥20 题验证基线**：20 题跑过，完成 13 / 超时 7，锚点召回均 0.32（完成题 0.41）——诚实反映「易/中题追得干净、难题受 35B 能力上限所限」。
 
-### 🚧 待办（暂缓，需先过闸门）：顺路发现缓存
+### ❌ 已证伪（阶段0 双否决，不合并）：顺路发现缓存
 
-> 想法：grep/读码时顺路发现的「当前用不上但后续有用」的语义（硬编码 key/端点/native 跳转）先留存以复用，避免重复读取+重复推理浪费 token。**痛点真实**（现实 agent 8% token 花在冗余读，见 context-rot/OfficeBench/LoCoBench），**但收益温和 + 有踩坑风险，故暂缓、按下述闸门推进，不急做。** 深度调研+红队分析见 `docs-resources/顺路发现缓存-旁路语义记忆-深度分析.md`。
+> 想法：grep/读码时顺路发现的语义（硬编码 key/端点/native 跳转）先留存复用，避免重复读+重复推理浪费 token。深度调研见 `docs-resources/顺路发现缓存-旁路语义记忆-深度分析.md`。**阶段1 MVP 代码 + 阶段0 实测在 `findings-cache` 分支存档（不合入 main）。**
 
-防过度设计的最小落地路径（**将来再做**）：
+**阶段0 一票否决闸门已实测（`分支 findings-cache` 上 `docs-resources/顺路发现缓存-阶段0闸门-实测.md`）——双否决：**
 
-1. **阶段 0（一票否决闸门，先做插桩、不写功能代码）**：量化痛点（折叠后被重新 grep+read 发现一次的频次/token 占比，插桩需先人工校准）**且**验证小模型是否真会主动写/读回 `append_note`。**两条件同时满足才进阶段 1。**
-2. **阶段 1（MVP，仅当阶段 0 通过）**：只 **un-gate `append_note`**（放宽 `note.ts` 的 `classify:()=>'ask'`）+ **回注 notes 尾部**（拼进既有末尾 ephemeral 管道，4000 字符预算内、优先级最低、措辞标「线索(未核验)」）+ **file:line 指针按需重读**。**不建 `findings[]` 第五数组、不做正则自动抽取、不注入 offGoal、不落盘 ledger、不做 resume 种子重建。**
-3. **消融**：以「**证伪无害 / 证伪没人用**」为目标（非「证明有用」）；被证伪的开关一律删除。因效应量在噪声级 + 功率不足，**默认结论倾向"不做"**。
+1. **Q1 痛点真实吗 → ❌**：11 个真实 run `folded=0`（从不折叠），`max_ctx` 5k–28k **远低于折叠阈 160k** → 80k 预算 + SWA 下 ctx 一直很小，没有「被折叠出上下文、需复原」的内容，痛点不存在。
+2. **Q2 小模型真会用吗 → ❌**：`--findings-cache` 开 + `append_note` un-gate + auto-approve，6 个 run 里 Qwen3.6 **一次 append_note 都没主动写**（`notes_written=0`）→ 缓存永远空。
+
+**裁决**：与原调研预测一致（消融目标是「证伪无害/证伪没人用」，默认倾向不做）→ **不合入 main**。阶段1 MVP 代码（un-gate + `renderFindingsBlock` 回注末尾管道 + `--findings-cache` 默认关，离线测 11/11、flag 关零变化）作「已验证证伪」制品留 `findings-cache` 分支。边界：只证 --once 自主模式；将来若出现「真会折叠 + 模型真写 note」的工作负载，可从分支复活重跑闸门。
 
 > ❌ 已否决（别再提）：草稿式「正则 findings 引擎」——混淆 APK 上正则非噪即哑，且把未核验猜测以系统权威口吻注入直撞[反幻觉铁律]；offGoal 常驻注入与 context-rot 自相矛盾。
 
@@ -487,6 +498,11 @@ rev-agent/
 | `测试语料广度-技术栈与保护手段矩阵分析.md` | 语料广度辩证分析 + 技术栈矩阵 |
 | `多Agent协作-强模型前置产物的续分析改进设计.md` | `--corpus` 案卷续分析设计 |
 | `如何给rev-agent下达逆向任务-使用指南.md` | 下指令方式 |
+| `框架化-把逆向负担从模型移到框架.md` | 框架化三提议深度分析 + 红队 + MVP 路线（缘起） |
+| `框架化-feature复盘.md` | MVP-0..4 逐特性 8 问复盘（含两次翻转的诚实记录） |
+| `框架化-F1-F3-补证据-多seed.md` | 合并前 n=5+扩样本消融：F1 signal 维持默认 / F3 playbook 证伪不当默认 |
+| `框架化-能力测试闭环-10题.md` | 10 题能力测试闭环（找 bug→修→再跑对比 + 归因铁律） |
+| `框架化-判分器-多GT改进.md` | grouped-GT 判分 + 一次被对抗式验证推翻的假设 |
 | 📄 项目根 `Mac 安卓逆向工具与工作流指南.md` | 主指南：4 阶段渐进 + 7 工作流 |
 
 ---
