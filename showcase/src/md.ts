@@ -62,7 +62,7 @@ md.inline.ruler.before('link', 'wikilink', (state, silent) => {
     const label = (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim()
     const slug = target.replace(/\s+/g, '-')
     const open = state.push('link_open', 'a', 1)
-    open.attrs = [['href', `#${encodeURIComponent(slug)}`], ['class', 'wikilink']]
+    open.attrs = [['href', `?p=${encodeURIComponent(slug)}`], ['class', 'wikilink']]
     const txt = state.push('text', '', 0)
     txt.content = label
     state.push('link_close', 'a', -1)
