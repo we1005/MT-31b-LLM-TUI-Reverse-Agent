@@ -21,6 +21,14 @@
 
 <br/>
 
+### 🌐 在线展示：**[reverse-agent-for-small-llm.netlify.app](https://reverse-agent-for-small-llm.netlify.app/)**
+
+[![Netlify](https://img.shields.io/badge/live_demo-Netlify-00C7B7?logo=netlify&logoColor=white)](https://reverse-agent-for-small-llm.netlify.app/)
+
+落地页 + [实测文档](https://reverse-agent-for-small-llm.netlify.app/docs) + [Wiki](https://reverse-agent-for-small-llm.netlify.app/wiki)（架构 Mermaid 图 / 机制详解 / 对比 / 精选题目，可切 Typora Vue 渲染主题）
+
+<br/>
+
 > 强制把 **「4 阶段渐进探索协议 + 7 铁律 + Token 预算」** 作为 system prompt 注入，并配一套**针对小参数本地模型**的上下文记忆系统（带外结构化台账 + 稳定前缀 + 断链/空转兜底），
 > 让本地模型（默认 **Qwen3.6-35B-A3B MoE，256K 窗口**）在长链路逆向任务上 **可控 · 不发散 · 追完必收尾**。
 >
