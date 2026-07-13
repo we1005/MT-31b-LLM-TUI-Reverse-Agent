@@ -48,8 +48,10 @@
 .md-body > *:first-child { margin-top: 0; }
 
 .md-body h1 { font-family: var(--font-serif); font-weight: 500; font-size: clamp(28px, 4vw, 37px); line-height: 1.15; color: var(--ink); margin: 0 0 8px; letter-spacing: -0.01em; scroll-margin-top: 74px; }
-.md-body h2 { font-family: var(--font-mono); font-weight: 600; font-size: clamp(20px, 2.6vw, 24px); color: var(--ink); margin: 32px 0 10px; padding-top: 13px; border-top: 1px solid var(--faint); letter-spacing: -0.01em; scroll-margin-top: 74px; }
+.md-body h2 { font-family: var(--font-mono); font-weight: 600; font-size: clamp(20px, 2.6vw, 24px); color: var(--ink); margin: 26px 0 10px; padding-top: 12px; border-top: 1px solid var(--faint); letter-spacing: -0.01em; scroll-margin-top: 74px; }
 .md-body h3 { font-family: var(--font-mono); font-weight: 600; font-size: 17px; color: var(--ink); margin: 22px 0 8px; scroll-margin-top: 74px; }
+/* 分隔线紧跟标题时：hr 已是分节线，去掉标题自带的 border/padding，避免双线 + 叠加大空白 */
+.md-body hr + h1, .md-body hr + h2, .md-body hr + h3 { border-top: none; padding-top: 0; margin-top: 14px; }
 .md-body h4 { font-family: var(--font-sans); font-weight: 600; font-size: 15.5px; color: var(--ink-soft); margin: 18px 0 6px; scroll-margin-top: 74px; }
 .md-body h1 + p, .md-body h1 + blockquote { color: var(--graphite); }
 
@@ -91,7 +93,7 @@
 .md-body tbody tr:hover td { background: rgba(58,90,134,.03); }
 .md-body td code { white-space: nowrap; }
 
-.md-body hr { border: none; border-top: 1px solid var(--faint); margin: 34px 0; }
+.md-body hr { border: none; border-top: 1px solid var(--faint); margin: 22px 0; }
 .md-body img { max-width: 100%; border-radius: 10px; border: 1px solid var(--faint); }
 
 /* mermaid：白纸卡片居中 */
