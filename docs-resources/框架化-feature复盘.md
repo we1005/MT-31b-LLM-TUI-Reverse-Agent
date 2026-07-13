@@ -43,15 +43,17 @@
 | 5 必要？ | 从"存疑"上调:crack-audit playbook(本项目真归纳)在有 GT 的深多跳题上确有正向;必要性中。手写栈 playbook(Unity/Flutter)仍未被本地题库覆盖到,价值待证。 |
 | 6 过度设计？ | 重估:**不是纯累赘**(有正向信号)→**不砍**。仍守铁律(系统按硬信号推+只作 context+优先自动生长)。 |
 | 7 能挽救/改进？ | 无需挽救;可改进=多题多 seed 确认 + 优先让自动生长(MVP-4)替代手写 seed。 |
-| 8 裁决 | **保留**(从"准备砍"翻成"留,谨慎乐观")——多 seed 显示 modest positive(可靠+更深)。这正是"别凭孤立/预判就砍子特性,让消融说话"铁律的活例。多题多 seed 再确认强度。 |
-证据：`scripts/test-playbook.ts`；待 `_scratch/pi-bench/ab2/results.csv`。
+| 8 裁决 | ~~保留(翻成"留,谨慎乐观")~~ **⚠️【n=5 再翻，见下】**：n=3 的"modest positive"是噪声。 |
+证据：`scripts/test-playbook.ts`；`_scratch/pi-bench/ab2/results.csv`。
+
+> **★ n=5 补证据更新（`框架化-F1-F3-补证据-多seed.md`）**：合并前用户要求「先补证据」，n=5 双题消融**推翻 F3 的 n=3「保留」**：q02-easynotes **playbook OFF 反而更好**（中位 0.71/均值 0.71/5-of-5/hops9 全面胜 ON 的 0.57/0.54/3-of-5/hops3）；q06-podcast 两者都失败但 ON 纯烧时间(322s/hops11 vs 248s/hops4)。机制推测=扩表锚点成 distractor（EasyNotes 真 crack 是 getHasBuyed，非订阅系命名）。**新裁决：F3 playbook 不该当 main 默认 → 改默认 OFF(opt-in) 或不合。** 教训：n=3「翻盘保留」正是它自己标注的「CI 宽可能噪声」成真——**别凭 n=3 定默认**。
 
 ---
 
 ## 汇总裁决（多 seed 复核后·终）
 - **Feature 1(守卫软化)**：✅ 多 seed 证难题净胜、普通题不退化。**保留，合 main 候选。**
 - **Feature 2(corpus 锚点自检)**：✅ 多 seed 证负向 3/3 防盲信 + 正向案卷 3/3+2.3×快+更深。**保留。** 诚实修正:solo Device 是 bimodal 2/3 非全失败。
-- **Feature 3(playbook)**：⚠️→✅ **翻盘**:曾判"最可能过度设计、准备砍"，多 seed 却是 modest positive(3/3 vs 2/3 + hops6 vs 0)。**保留(谨慎乐观)**，多题多 seed 再定强度。**教训:没让消融说话前差点错杀——印证"别凭预判砍子特性"铁律。**
+- **Feature 3(playbook)**：⚠️→✅→❌ **两次翻转、终判不该当默认**:n=3 曾从"准备砍"翻成"留(modest positive)"，**n=5 补证据又翻回负面**(q02 OFF 全面胜、q06 ON 纯烧时间)。**终裁:不该当 main 默认(改默认 OFF/opt-in)。** 教训双面:①别凭孤立预判砍子特性(n=3 阶段对)；②但**更别凭 n=3 定默认**——CI 宽的"翻盘保留"经不起 n=5。消融要跑够样本才能定默认方向。
 > 三者均保留;整体(全开)相比裸框架在难/深多跳题上净正。共同的诚实保留:n=3 CI 宽、单题、temp 噪声——绝对幅度需更多 seed/更多题收窄(下一步 10 题能力测试正好扩样本)。
 
 ---
