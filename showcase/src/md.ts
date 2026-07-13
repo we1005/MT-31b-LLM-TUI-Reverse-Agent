@@ -25,7 +25,7 @@ for (const [name, lang] of Object.entries({ bash, sh: bash, shell: bash, typescr
  * - 标题加锚点（headerLink，便于 TOC/深链）
  */
 export const md: MarkdownIt = new MarkdownIt({
-  html: false,
+  html: true, // 内容是自有 docs/wiki（可信），允许 <br/> 等内联 HTML 正常渲染（否则表格里 <br/> 变字面乱码）
   linkify: true,
   typographer: false,
   highlight(str, lang) {
