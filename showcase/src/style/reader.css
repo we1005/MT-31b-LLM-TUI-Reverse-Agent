@@ -58,8 +58,9 @@
 .md-body em { color: var(--ink); font-family: var(--font-serif); font-style: italic; }
 .md-body a { color: var(--slate); border-bottom: 1px solid transparent; }
 .md-body a:hover { color: var(--vermilion); border-bottom-color: currentColor; }
-.md-body .header-anchor { border: none; color: var(--mute); opacity: 0; margin-left: 8px; font-weight: 400; }
-.md-body :hover > .header-anchor { opacity: .55; }
+/* headerLink 把整段标题包成 <a class="header-anchor">：让它恒等于普通标题外观（始终可见、点击跳锚点） */
+.md-body .header-anchor { color: inherit; border: none; opacity: 1; font-weight: inherit; }
+.md-body .header-anchor:hover { color: inherit; border: none; }
 
 .md-body ul, .md-body ol { margin: 10px 0; padding-left: 24px; }
 .md-body li { margin: 3px 0; }
