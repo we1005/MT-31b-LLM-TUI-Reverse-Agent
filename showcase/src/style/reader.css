@@ -127,9 +127,9 @@
 :root[data-md="vue"] .md-body ul, :root[data-md="vue"] .md-body ol { padding-left: 30px; }
 :root[data-md="vue"] .md-body ul li::marker { color: #42b983; }
 :root[data-md="vue"] .md-body ol li::marker { color: #34495e; font-family: inherit; }
-:root[data-md="vue"] .md-body :not(pre) > code { font-family: var(--font-mono); font-size: .92em; color: #e96900; background: #f8f8f8; border: none; padding: 2px 4px; border-radius: 2px; }
+:root[data-md="vue"] .md-body :not(pre) > code { font-family: 'Fira Code', var(--font-mono); font-size: .92em; color: #e96900; background: #f8f8f8; border: none; padding: 2px 4px; border-radius: 2px; }
 :root[data-md="vue"] .md-body pre.code { background: #f8f8f8; border: none; border-radius: 4px; }
-:root[data-md="vue"] .md-body pre.code code { color: #525252; }
+:root[data-md="vue"] .md-body pre.code code { font-family: 'Fira Code', var(--font-mono); color: #525252; }
 :root[data-md="vue"] .md-body blockquote { border-left: 4px solid #42b983; background: rgba(66,185,131,.1); color: #777; border-radius: 0; padding: 10px 15px; }
 :root[data-md="vue"] .md-body blockquote strong { color: #42b983; }
 :root[data-md="vue"] .table-scroll { border-color: #dfe2e5; border-radius: 3px; }
