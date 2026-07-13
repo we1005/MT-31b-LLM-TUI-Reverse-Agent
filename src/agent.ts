@@ -218,6 +218,10 @@ export class Agent extends EventEmitter {
   private maxCtx = 0;
   private readonly foldedIds = new Set<string>();
   private dedupHits = 0;
+  /** 阶段0 闸门插桩：findings-cache 开启时——模型主动写笔记次数 + 系统回注非空线索块次数。
+   *  用于验「小模型真会写/线索真被回注吗」(闸门 Q2)。默认关时恒 0，零开销。 */
+  private notesWritten = 0;
+  private findingsInjected = 0;
   private explorationNudges = 0;
   /** 带外结构化台账（阶段1）：系统维护，不进 messages，绕 v6 配对。收编 hopWritten/hopCount 脆弱正则。 */
   private readonly ledger = new Ledger();
@@ -281,6 +285,8 @@ export class Agent extends EventEmitter {
     this.stepCount = 0;
     this.nudgeCount = 0;
     this.redSteps = 0;
+    this.notesWritten = 0;
+    this.findingsInjected = 0;
     this.forcedFinish = false;
     this.toolCallTotal = 0;
     this.dedupHits = 0;
@@ -330,6 +336,7 @@ export class Agent extends EventEmitter {
         if (this.opts.findingsCache && this.opts.notesPath) {
           try {
             findingsBlock = renderFindingsBlock(readFileSync(this.opts.notesPath, 'utf-8'));
+            if (findingsBlock) this.findingsInjected++;
           } catch {
             /* 笔记文件还不存在 = 无线索，正常 */
           }
@@ -440,6 +447,7 @@ export class Agent extends EventEmitter {
       'warn',
       `[SCORECARD] steps=${this.stepCount} ledger(hops=${ms.hops} ✓${ms.corroborated} reads=${ms.reads} greps=${ms.greps})` +
         ` cache_avg=${cacheAvg}% cache_min=${cacheMin}% max_ctx=${this.maxCtx} folded=${this.foldedIds.size} dedup=${this.dedupHits}` +
+        ` notes_written=${this.notesWritten} findings_injected=${this.findingsInjected}` +
         ` nudges=${this.nudgesTotal} explore_nudges=${this.explorationNudges} stall=${this.stallTriggered ? 1 : 0}` +
         ` forced=${this.forcedFinish ? 1 : 0} escalations=${this.escalationCount} wrap=${this.wrapFinished ? 1 : 0} conclusion=${conclusion ? 1 : 0}` +
         // 介入指标：agent 原地打转/需干预的总次数(越少越好=越顺、越少需强模型/用户介入)。
@@ -969,6 +977,7 @@ export class Agent extends EventEmitter {
             this.emit('toolResult', id, name, { error });
           } else {
             this.ledger.observeToolResult(name, args, r); // 系统自动抽 reads/greps 进台账(零LLM)
+            if (name === 'append_note' && (r as { ok?: boolean })?.ok) this.notesWritten++; // 阶段0 闸门:模型主动写笔记计数
             // 记去重后的成功 shell 命令数(供 stall 进度度量)：shell ls/find 探目录是合法进展，
             //   但 ledger 只抽 reads/greps → 用 shell 探路时 stall 误判空转(np-r9 实测:ls 导航中被误杀0/7)。
             if (name === 'shell' && args && typeof (args as { cmd?: unknown }).cmd === 'string') {
