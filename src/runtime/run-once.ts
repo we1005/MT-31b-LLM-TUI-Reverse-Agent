@@ -252,8 +252,10 @@ export async function runOnce(opts: RunOnceOpts): Promise<number> {
     // MVP-3 栈感知主动注入 playbook（**只作 context·可无视**，不作 control）：按 stack-probe 确凿命中的
     // 栈 + 任务关键词，把"做法/套路"拼进首条消息末尾。系统主动推（解"弱模型不会自查知识库"悖论），
     // 但明确标"参考·可无视"，模型可不理——绝不"检测到 X 就强制执行 Y"。
-    // REV_NO_PLAYBOOK=1 关掉注入(用于 A/B 测 playbook 效果)。
-    const pbs = process.env['REV_NO_PLAYBOOK'] === '1' ? [] : matchPlaybooks(stackReport, opts.task);
+    // **默认关**(opt-in REV_PLAYBOOK=1 才注入)：n=5+扩样本消融证 playbook 注入在 5 道 crack 题上
+    // 一道都没更好(OFF 胜2/平3/ON胜0)，默认注入是轻度净负 → 默认不注入。代码/MVP-4 自动生长保留备将来。
+    // 证据见 docs-resources/框架化-F1-F3-补证据-多seed.md。
+    const pbs = process.env['REV_PLAYBOOK'] === '1' ? matchPlaybooks(stackReport, opts.task) : [];
     const pbBlock = renderPlaybookBlock(pbs);
     if (pbBlock) {
       firstMessage += `\n\n${pbBlock}`;
