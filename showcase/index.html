@@ -3,28 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="rev-agent — 本地 Qwen3.6-35B 驱动的只读安卓逆向 agent。协议注入 + 结构化台账 + SWA 稳定前缀 + 软化止损守卫。" />
-  <meta name="theme-color" content="#0a0b0f" />
-  <meta property="og:title" content="rev-agent · 本地 35B 只读安卓逆向 agent" />
-  <meta property="og:description" content="把逆向负担从模型移到框架：协议注入 · 结构化台账 · SWA 稳定前缀 · 软化止损守卫 · 案卷 handoff · 脱敏云端顾问。" />
+  <meta name="description" content="rev-agent — 本地 Qwen3.6-35B 驱动的只读安卓逆向取证 agent。在数万个反编译文件里，定位被篡改成恒真的那一行。" />
+  <meta name="theme-color" content="#e7e9ee" />
+  <meta property="og:title" content="rev-agent · 逆向取证 agent" />
+  <meta property="og:description" content="在 25,852 个反编译文件里，定位被改成恒真的那一行。结构化台账 · SWA 稳定前缀 · 软化止损守卫 · 案卷 handoff · 脱敏云端顾问。" />
   <meta property="og:type" content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <title>rev-agent · 本地 35B 只读安卓逆向 agent</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+  <title>rev-agent · 逆向取证 agent</title>
 </head>
 <body>
-  <!-- NavBar -->
   <nav class="nav">
     <div class="wrap nav-inner">
-      <a class="brand" href="./index.html">
-        <span class="dot"></span><b><span class="rev">rev</span>-agent</b>
-      </a>
+      <a class="brand" href="./index.html"><span class="rev">rev</span>-agent<span class="car">_</span></a>
       <div class="nav-links">
-        <a href="#features">机制</a>
-        <a href="#stats">标定</a>
-        <a href="#arch">架构</a>
-        <a href="./docs.html">文档</a>
+        <a href="#methods">手法</a>
+        <a href="#findings">对证</a>
+        <a href="#arch">构造</a>
+        <a href="./docs.html">实测文档</a>
         <a href="./wiki.html">Wiki</a>
         <a class="btn btn-ghost nav-cta" href="https://github.com/we1005/MT-31b-LLM-TUI-Reverse-Agent" target="_blank" rel="noopener">GitHub ↗</a>
       </div>
@@ -32,149 +29,132 @@
   </nav>
 
   <main>
-    <!-- Hero -->
+    <!-- HERO · 签名：反混淆追踪 -->
     <header class="hero">
       <div class="wrap hero-grid">
         <div>
-          <div class="eyebrow reveal">本地 35B · 只读安卓逆向 · 单并发</div>
-          <h1 class="display reveal" data-d="1">把逆向负担<br/>从模型<span class="grad"> 移到框架</span>。</h1>
-          <p class="lede reveal" data-d="2">
-            rev-agent 是一个自研轻量 TS/Bun agent CLI，驱动本地 <code>Qwen3.6-35B-A3B</code> MoE，
-            专做安卓 APK 只读逆向。它把用户手写的<b>「4 阶段协议 + 7 铁律 + Token 预算」</b>强制作 system 注入，
-            用<b>结构化台账、SWA 稳定前缀、软化止损守卫</b>补上弱模型的记忆/自律/长上下文短板。
-          </p>
+          <div class="ref reveal"><span class="ex">EX·00</span> · 逆向取证 AGENT · 本地 35B · 只读</div>
+          <h1 class="reveal" data-d="1">在 <span class="files">25,852</span> 个反编译文件里，<br/>定位<em> 被篡改成 </em><span class="line">恒真的那一行</span>。</h1>
+          <p class="lede reveal" data-d="2">rev-agent 是自研轻量 agent CLI，驱动本地 <b>Qwen3.6-35B-A3B</b>，把用户手写的四阶段协议强制作 system 注入，用<b>结构化台账、SWA 稳定前缀、软化止损守卫</b>把弱模型的记忆与自律短板补进框架——只读，绝不产破解。</p>
           <div class="hero-cta reveal" data-d="3">
-            <a class="btn btn-primary" href="./wiki.html">浏览 Wiki →</a>
-            <a class="btn btn-ghost" href="./docs.html">查看实测文档</a>
+            <a class="btn btn-primary" href="./wiki.html">翻开 Wiki →</a>
+            <a class="btn btn-ghost" href="./docs.html">实测文档</a>
           </div>
         </div>
 
-        <div class="glass term-card reveal" data-d="2">
-          <div class="term-bar"><i class="r"></i><i class="y"></i><i class="g"></i><span>rev-agent --once</span></div>
-          <div class="term-body">
-<span class="c"># 只读审计被破解的 EasyNotes VIP mod</span><br/>
-<span class="p">$</span> <span class="k">rev-agent</span> --once <span class="s">"如何绕过 VIP 校验?"</span> --workdir easynotes-jadx<br/>
-<span class="dim">[栈探测] dex=3 native=N · 未见非dex栈</span><br/>
-<span class="dim">[台账] grep isVip|getHasBuyed → 2 命中</span><br/>
-<span class="tool">→ read_file constant/UserConfig.java:1040-1160</span><br/>
-<span class="dim">[台账] hop1: App.isVip → getHasBuyed ✓</span><br/>
-<span class="dim">[台账] hop2: getHasBuyed @:1052 → return true ✓</span><br/>
-<span class="ok">## 最终结论</span><br/>
-<span class="ink">破解点 UserConfig.getHasBuyed()@:1052</span><br/>
-<span class="ink">手法：读 pref 后丢弃、恒 return true</span><br/>
-<span class="dim">[SCORECARD] reads=1 hops=4 cache_avg=94%</span> <span class="cursor"></span>
+        <!-- 证据卡 -->
+        <div class="glass evi reveal" data-d="2">
+          <div class="evi-head"><span class="tag">EXHIBIT A</span> EasyNotes · VIP mod <span class="meta">25,852 files</span></div>
+          <div class="evi-body">
+            <p class="evi-cap">候选 · 混淆短名 · 无语义</p>
+            <div class="hay">
+              <span style="--i:0">o/lw0.h</span><span style="--i:1">zc/c1.a</span><span style="--i:2">y2/b</span><span style="--i:3">ub1.m</span><span style="--i:4">getBoolean(sku)</span><span style="--i:5">nn0.k</span><span style="--i:6">kr1(true)</span><span style="--i:7">gz0.f</span><span style="--i:8">C19184</span><span style="--i:9">AbstractC2068ih0</span><span style="--i:10">premium_offer_count</span><span style="--i:11">isVip?</span>
+            </div>
+            <div class="trace">
+              <div class="tl" style="--i:0"><span class="arrow">→</span><span class="m">App.isVip()</span><span class="loc">App.java:277</span></div>
+              <div class="tl" style="--i:1"><span class="arrow">→</span><span class="m">getHasBuyed()</span><span class="loc">UserConfig.java:1052</span></div>
+              <div class="tl" style="--i:2"><span class="arrow">·</span><span class="note">读 pref … 随后丢弃返回值</span></div>
+              <div class="tl hit" style="--i:3"><span class="arrow tamper">→</span><span class="code">return true;</span><span class="st stamp">恒真 · TAMPER</span></div>
+            </div>
+            <p class="evi-verdict">一行，藏在 <b>25,852</b> 个文件里。</p>
           </div>
         </div>
       </div>
     </header>
 
-    <!-- 铁律 / 定位 -->
+    <!-- 原则 -->
     <section class="section">
       <div class="wrap">
         <div class="section-head reveal">
-          <div class="eyebrow">设计红线</div>
-          <h2 class="display">框架只做两件事，其余交还给 agent。</h2>
-          <p>越过这条线，就退化成一条「反编译流水线」，丢掉 rev-agent 的独特价值（协议注入 + 深读裁量）。</p>
+          <div class="ref"><span class="ex">§</span> 取证守则</div>
+          <h2>框架只做两件事，<em>其余</em>交还给 agent。</h2>
+          <p>越过这条线，就退化成一条反编译流水线，丢掉深读裁量——rev-agent 的独特价值。</p>
         </div>
-        <div class="features">
-          <div class="glass law reveal"><div class="n">①</div><p><b>按硬可观测事实注入 context。</b>栈探测、案卷锚点、台账 —— 都是确定性事实，不是猜测。</p></div>
-          <div class="glass law reveal" data-d="1"><div class="n">②</div><p><b>按资源硬上限收 budget。</b>ctx/步数/token 触顶才止损，且明确标注「资源上限」而非「任务完成」。</p></div>
-          <div class="glass law reveal" data-d="2"><div class="n">∅</div><p><b>永不替 agent 决定「下一步动作」或「任务是否完成」。</b>守卫只注入 CHECKPOINT，决策权留给模型。</p></div>
+        <div class="laws reveal">
+          <div class="law"><div class="k">注入</div><h3>按硬事实给 context</h3><p>栈探测、案卷锚点、结构化台账——都是确定性证据，不是猜测。</p></div>
+          <div class="law"><div class="k">收敛</div><h3>按资源上限收 budget</h3><p>ctx / 步数 / token 触顶才止损，且明确标注「资源上限」而非「任务完成」。</p></div>
+          <div class="law"><div class="k">不越界</div><h3>不替 agent 下判断</h3><p>守卫只注入 CHECKPOINT，「下一步做什么 / 是否收尾」的决定权始终留给模型。</p></div>
         </div>
       </div>
     </section>
 
-    <!-- Features -->
-    <section class="section" id="features">
+    <!-- 机制 · 手法 -->
+    <section class="section" id="methods">
       <div class="wrap">
         <div class="section-head reveal">
-          <div class="eyebrow">核心机制 · 约 60 个</div>
-          <h2 class="display">每一个机制，都治一次真实翻车。</h2>
-          <p>不是"更聪明的提示"，而是一层层把弱模型的短板搬进框架。下面是最有代表性的六个。</p>
+          <div class="ref"><span class="ex">EX·01</span> · 取证手法</div>
+          <h2>每一个机制，<em>都</em>治一次真实翻车。</h2>
+          <p>不是"更聪明的提示"，而是一层层把弱模型的记忆 / 自律 / 长上下文短板搬进框架。约 60 个中最有代表性的六个：</p>
         </div>
-        <div class="features">
-          <article class="glass fcard reveal"><div class="ic">🧊</div><h3>SWA 稳定前缀</h3><p>台账拼 messages 末尾、system 逐字节静态 → llama.cpp KV 前缀可复用。实测前缀缓存 <b>0% → 97%</b>，治"越聊越卡"。</p><span class="tag">agent.ts · REV_GUARD_MODE</span></article>
-          <article class="glass fcard reveal" data-d="1"><div class="ic">📒</div><h3>带外结构化台账</h3><p>每次 read/grep 后<b>零-LLM 自动抽取</b> reads/greps/hops，verbatim 存类名行号，交叉核验打 ✓。绕开 SDK 配对 bug。</p><span class="tag">memory/ledger.ts</span></article>
-          <article class="glass fcard reveal" data-d="2"><div class="ic">🛡️</div><h3>signal 软化止损</h3><p>守卫从"计数即强制收尾"改成"信号触发注入 CHECKPOINT + 给预算"，只在资源硬上限收尾。难题不再被过早掐停。</p><span class="tag">guards.ts · 默认 signal</span></article>
-          <article class="glass fcard reveal"><div class="ic">🗂️</div><h3>案卷 handoff</h3><p><code>--corpus</code> 接手强模型前置分析（去混淆映射 + file:line 锚点），把弱模型的"搜索题"降级成"核对题"。实测 <b>6.8× 快</b>。</p><span class="tag">corpus.ts · 锚点自检</span></article>
-          <article class="glass fcard reveal" data-d="1"><div class="ic">🔐</div><h3>脱敏云端顾问</h3><p>本地卡住 → 台账驱动<b>确定性脱敏</b> → 问云端拿方法论 → 还原续跑。fail-closed 泄露扫描，真实外网 <b>0 泄露</b>。默认关。</p><span class="tag">advisor.ts + redact.ts</span></article>
-          <article class="glass fcard reveal" data-d="2"><div class="ic">🧭</div><h3>主动栈探测</h3><p>开局 <code>unzip -l</code> 看 lib/assets 指纹，权威识别 Unity/Flutter/RN/加固，掐掉模型"谎称无 native"的 false-negative。</p><span class="tag">stack-probe.ts</span></article>
+        <div class="mechs">
+          <article class="glass mech reveal"><div class="no">SWA</div><h3>稳定前缀</h3><p>台账拼 messages 末尾、system 逐字节静态 → llama.cpp KV 前缀可复用。实测前缀缓存 <b>0% → 97%</b>，根治"越聊越卡"。</p><div class="where">agent.ts · REV_GUARD_MODE</div></article>
+          <article class="glass mech reveal" data-d="1"><div class="no">MEM</div><h3>带外结构化台账</h3><p>每次 read/grep 后<b>零-LLM 自动抽取</b> reads/greps/hops，verbatim 存类名行号、交叉核验打 ✓，绕开 SDK 配对 bug。</p><div class="where">memory/ledger.ts</div></article>
+          <article class="glass mech reveal" data-d="2"><div class="no">GRD</div><h3>signal 软化止损</h3><p>守卫从"计数即强制收尾"改成"信号触发注入 CHECKPOINT + 给预算"，只在资源硬上限收尾。难题不再被过早掐停。</p><div class="where">guards.ts · 默认 signal</div></article>
+          <article class="glass mech reveal"><div class="no">COR</div><h3>案卷 handoff</h3><p><b>--corpus</b> 接手强模型前置分析（去混淆映射 + file:line 锚点），把弱模型的"搜索题"降级成"核对题"。实测 <b>6.8× 快</b>。</p><div class="where">corpus.ts · 锚点自检</div></article>
+          <article class="glass mech reveal" data-d="1"><div class="no">SEC</div><h3>脱敏云端顾问</h3><p>卡住 → 台账驱动<b>确定性脱敏</b> → 问云端拿方法论 → 还原续跑。fail-closed 泄露扫描，真实外网 <b>0 泄露</b>。默认关。</p><div class="where">advisor.ts + redact.ts</div></article>
+          <article class="glass mech reveal" data-d="2"><div class="no">STK</div><h3>主动栈探测</h3><p>开局 <b>unzip -l</b> 看 lib/assets 指纹，权威识别 Unity/Flutter/RN/加固，掐掉模型"谎称无 native"的 false-negative。</p><div class="where">stack-probe.ts</div></article>
         </div>
       </div>
     </section>
 
-    <!-- Stats -->
-    <section class="section" id="stats">
+    <!-- 对证 -->
+    <section class="section" id="findings">
       <div class="wrap">
         <div class="section-head reveal">
-          <div class="eyebrow">实测标定 · 诚实第一</div>
-          <h2 class="display">数字都来自实跑，凡结论标证据强度。</h2>
+          <div class="ref"><span class="ex">EX·02</span> · 对证 / findings</div>
+          <h2>杠杆在<em>行为与前置</em>，不在模型知识。</h2>
+          <p>同模型（本地 Qwen3.6）、同题、串行。完整六组见 <a href="./wiki.html">Wiki › Comparisons</a>。</p>
         </div>
-        <div class="stats">
-          <div class="glass stat reveal"><div class="num" data-count="60"></div><div class="lbl">核心机制</div></div>
-          <div class="glass stat reveal" data-d="1"><div class="num" data-count="136"></div><div class="lbl">离线断言</div></div>
-          <div class="glass stat reveal" data-d="2"><div class="num" data-count="97"><span class="u">%</span></div><div class="lbl">前缀缓存复用峰值</div></div>
-          <div class="glass stat reveal" data-d="1"><div class="num" data-count="7"></div><div class="lbl">可切 LLM 后端</div></div>
-          <div class="glass stat reveal" data-d="2"><div class="num" data-count="4"></div><div class="lbl">只读工具白名单</div></div>
-          <div class="glass stat reveal" data-d="3"><div class="num" data-count="10"></div><div class="lbl">题能力标定</div></div>
+        <div class="finds">
+          <div class="glass find reveal"><div class="fig">3.5<span class="u">×</span></div><h4>中难度定位更快</h4><p>vs 通用 coding agent 跑同一本地模型：113s / 4 工具 vs 402s / 18 工具——协议+台账焊死。</p></div>
+          <div class="glass find reveal" data-d="1"><div class="fig">6.8<span class="u">×</span></div><h4>案卷破全混淆题</h4><p>强模型前置案卷让弱模型从 900s 超时空答 → 132s 命中，<b>0 grep / 14 read</b>：搜索题降级成核对题。</p></div>
+          <div class="glass find reveal" data-d="2"><div class="fig">0</div><h4>真实外网出境泄露</h4><p>脱敏防火墙（台账精确替换 + 正则兜底 + fail-closed 扫描）在火山引擎 live 验证 0 泄露。</p></div>
         </div>
       </div>
     </section>
 
-    <!-- 对比高亮 -->
-    <section class="section">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <div class="eyebrow">头对头实测</div>
-          <h2 class="display">框架的杠杆，在行为与前置，而非模型知识。</h2>
-          <p>同模型（本地 Qwen3.6）、同题、串行。完整六组对比见 <a href="./wiki.html">Wiki › Comparisons</a>。</p>
-        </div>
-        <div class="cmp">
-          <div class="glass cmp-card reveal"><div class="big">3.5×</div><h4>中难度定点定位更快</h4><p>vs 通用 coding agent（pi）跑同一本地模型：113s / 4 工具 vs 402s / 18 工具——协议+台账焊死。</p></div>
-          <div class="glass cmp-card reveal" data-d="1"><div class="big">6.8×</div><h4>案卷 handoff 破全混淆题</h4><p>强模型前置案卷让弱模型从 900s 超时空答 → 132s 命中，<b>0 grep / 14 read</b>：搜索题降级成核对题。</p></div>
-          <div class="glass cmp-card reveal" data-d="2"><div class="big">0</div><h4>真实外网出境泄露</h4><p>脱敏防火墙（台账精确替换 + 正则兜底 + fail-closed 扫描）在火山引擎 live 验证 0 泄露。</p></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 架构预览 -->
+    <!-- 构造 -->
     <section class="section" id="arch">
       <div class="wrap">
         <div class="section-head reveal">
-          <div class="eyebrow">端到端架构</div>
-          <h2 class="display">一个 Agent 核心，四个前端共享。</h2>
-          <p>决策/记忆/守卫/安全都在框架里，模型只管读码+推理。完整 Mermaid 图见 <a href="./wiki.html">Wiki › Architecture</a>。</p>
+          <div class="ref"><span class="ex">EX·03</span> · 构造</div>
+          <h2>一个 Agent 核心，<em>四个</em>前端共享。</h2>
+          <p>决策 / 记忆 / 守卫 / 安全都在框架里，模型只管读码+推理。完整 Mermaid 图见 <a href="./wiki.html">Wiki › Architecture</a>。</p>
         </div>
-        <div class="arch">
-          <div class="glass arch-row reveal"><div class="layer">入口</div><div class="items"><span class="chip">index.tsx · commander</span></div></div>
-          <div class="glass arch-row reveal" data-d="1"><div class="layer">前端 ×4</div><div class="items"><span class="chip">--once</span><span class="chip">TUI · OpenTUI</span><span class="chip">--web · Bun.serve</span><span class="chip">--mcp-server</span></div></div>
-          <div class="glass arch-row reveal" data-d="2"><div class="layer">Agent 核心</div><div class="items"><span class="chip">单步 Plan-Act · 手动 dispatch · EventEmitter</span></div></div>
-          <div class="glass arch-row reveal" data-d="1"><div class="layer">记忆·守卫</div><div class="items"><span class="chip">Ledger 台账</span><span class="chip">decideGuard</span><span class="chip">Budget 线性计量</span></div></div>
-          <div class="glass arch-row reveal" data-d="2"><div class="layer">工具</div><div class="items"><span class="chip">shell</span><span class="chip">read_file ≤200</span><span class="chip">grep ≤50</span><span class="chip">append_note</span></div></div>
-          <div class="glass arch-row reveal" data-d="1"><div class="layer">协议注入</div><div class="items"><span class="chip">prompts §1-§9</span><span class="chip">stack-probe</span><span class="chip">--corpus</span><span class="chip">--resume</span><span class="chip">playbook</span></div></div>
-          <div class="glass arch-row reveal" data-d="2"><div class="layer">后端</div><div class="items"><span class="chip">lemonade · Qwen3.6</span><span class="chip">+6 后端可切</span><span class="chip">reasoning fetch 改写</span></div></div>
+        <div class="arch reveal">
+          <div class="arch-row"><div class="layer">入口</div><div class="items"><span class="chip">index.tsx · commander</span></div></div>
+          <div class="arch-row"><div class="layer">前端 ×4</div><div class="items"><span class="chip">--once</span><span class="chip">TUI · OpenTUI</span><span class="chip">--web · Bun.serve</span><span class="chip">--mcp-server</span></div></div>
+          <div class="arch-row"><div class="layer">Agent 核心</div><div class="items"><span class="chip">单步 Plan-Act · 手动 dispatch · EventEmitter</span></div></div>
+          <div class="arch-row"><div class="layer">记忆·守卫</div><div class="items"><span class="chip">Ledger 台账</span><span class="chip">decideGuard</span><span class="chip">Budget 线性计量</span></div></div>
+          <div class="arch-row"><div class="layer">工具</div><div class="items"><span class="chip">shell</span><span class="chip">read_file ≤200</span><span class="chip">grep ≤50</span><span class="chip">append_note</span></div></div>
+          <div class="arch-row"><div class="layer">协议注入</div><div class="items"><span class="chip">prompts §1-§9</span><span class="chip">stack-probe</span><span class="chip">--corpus</span><span class="chip">--resume</span><span class="chip">playbook</span></div></div>
+          <div class="arch-row"><div class="layer">后端</div><div class="items"><span class="chip">lemonade · Qwen3.6</span><span class="chip">+6 后端可切</span><span class="chip">reasoning fetch 改写</span></div></div>
         </div>
       </div>
     </section>
 
-    <!-- Tech marquee -->
-    <section class="section" style="padding:40px 0">
-      <div class="wrap marquee">
-        <div class="marquee-track">
-          <span><b>Bun</b></span><span><b>Vercel AI SDK v6</b></span><span><b>OpenTUI</b></span><span><b>zod</b></span><span><b>commander</b></span><span><b>MCP SDK</b></span><span><b>lemonade</b></span><span><b>Qwen3.6-35B-A3B</b></span><span><b>ripgrep</b></span><span><b>jadx / apktool</b></span><span><b>llama.cpp SWA</b></span>
-          <span><b>Bun</b></span><span><b>Vercel AI SDK v6</b></span><span><b>OpenTUI</b></span><span><b>zod</b></span><span><b>commander</b></span><span><b>MCP SDK</b></span><span><b>lemonade</b></span><span><b>Qwen3.6-35B-A3B</b></span><span><b>ripgrep</b></span><span><b>jadx / apktool</b></span><span><b>llama.cpp SWA</b></span>
+    <!-- 结案摘要 -->
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head reveal" style="margin-bottom:28px">
+          <div class="ref"><span class="ex">结案</span> · 实测标定 · 诚实第一</div>
+        </div>
+        <div class="summary reveal">
+          <div class="sfig"><div class="num" data-count="60"></div><div class="lbl">核心机制</div></div>
+          <div class="sfig"><div class="num" data-count="136"></div><div class="lbl">离线断言</div></div>
+          <div class="sfig"><div class="num" data-count="97"><span class="u">%</span></div><div class="lbl">前缀缓存复用峰值</div></div>
+          <div class="sfig"><div class="num" data-count="10"></div><div class="lbl">题能力标定</div></div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="footer">
     <div class="wrap footer-grid">
       <div class="compliance">
-        <div class="brand" style="margin-bottom:12px"><span class="dot"></span><b><span class="rev">rev</span>-agent</b></div>
-        <b>合规边界</b>：本项目仅用于<b>只读逆向分析</b>与防御视角研究（工具白名单限 read/grep/find/ls，绝不产破解、不改 APK）。
-        样本为已公开流通的被篡改 App，用于审计"如何被攻破 + 如何加固"。
+        <div class="brand" style="font-size:16px;margin-bottom:12px"><span class="rev">rev</span>-agent</div>
+        <b>合规边界</b>：仅用于<b>只读逆向分析</b>与防御视角研究（工具白名单限 read/grep/find/ls，绝不产破解、不改 APK）。样本为已公开流通的被篡改 App，用于审计"如何被攻破 + 如何加固"。
+        <div class="instruments">Bun · Vercel AI SDK v6 · OpenTUI · zod · MCP · lemonade · Qwen3.6-35B-A3B · ripgrep · jadx / apktool · llama.cpp SWA</div>
       </div>
       <div class="footer-links">
         <a href="./index.html">首页</a>

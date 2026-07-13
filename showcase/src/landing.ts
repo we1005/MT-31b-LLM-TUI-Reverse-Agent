@@ -3,6 +3,13 @@ import './style/landing.css'
 
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
 
+// 签名动效收束：追踪跑完后，点亮"被篡改的那一行"（朱砂 + 盖章）
+const hit = document.querySelector('.trace .hit')
+if (hit) {
+  if (reduce) hit.classList.add('lit')
+  else setTimeout(() => hit.classList.add('lit'), 2450)
+}
+
 // 滚动揭幕
 const revIO = new IntersectionObserver(
   (entries) => {

@@ -1,6 +1,6 @@
 import './style/base.css'
 import './style/reader.css'
-import 'highlight.js/styles/github-dark.css'
+import 'highlight.js/styles/github.css'
 import { md } from './md'
 import index from './content/index.json'
 
@@ -11,15 +11,17 @@ function loadMermaid() {
     mermaidReady = import('mermaid').then(({ default: mermaid }) => {
       mermaid.initialize({
         startOnLoad: false,
-        theme: 'dark',
+        theme: 'base',
         securityLevel: 'loose',
-        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+        fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
         themeVariables: {
-          background: '#0e1016',
-          primaryColor: '#171a22',
-          primaryTextColor: '#e8e8ee',
-          primaryBorderColor: '#8b8bf5',
-          lineColor: '#7c7e8c',
+          background: '#ffffff',
+          primaryColor: '#f2f3f6',
+          primaryTextColor: '#14181f',
+          primaryBorderColor: '#3a5a86',
+          lineColor: '#59616e',
+          secondaryColor: '#fdecea',
+          tertiaryColor: '#eef0f3',
           fontSize: '14px',
         },
       })
