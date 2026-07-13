@@ -277,7 +277,12 @@ flowchart LR
 
 1. **阶段 0（一票否决闸门，先做插桩、不写功能代码）**：量化痛点（折叠后被重新 grep+read 发现一次的频次/token 占比，插桩需先人工校准）**且**验证小模型是否真会主动写/读回 `append_note`。**两条件同时满足才认定阶段1有价值。⚠️ 需 lemonade，尚未做。**
 2. **阶段 1（MVP·✅ 代码已落 `findings-cache` 分支，默认关 `--findings-cache`）**：已 **un-gate `append_note`**（`note.ts` autoApprove→`classify:'auto'`，仅 flag 开）+ **回注 notes 尾部**（`src/findings.ts` `renderFindingsBlock` 拼进既有末尾 ephemeral 管道，4000 字符内、优先级最低、措辞「线索(未核验)/用前重读核对」）+ **file:line 指针按需重读**（复用既有 read_file）。**未建 `findings[]` 第五数组、未做正则抽取、未注入 offGoal、未落盘 ledger、未做 resume 种子重建。** flag 关时逐字节零行为变化（已验证）；离线测 `scripts/test-findings.ts` 11/11。
-3. **消融（阶段0 通过后再做）**：以「**证伪无害 / 证伪没人用**」为目标（非「证明有用」）；被证伪的开关一律删除。因效应量在噪声级 + 功率不足，**默认结论仍倾向"不做/不合 main"**——代码在分支待命，过闸门才考虑合并。
+3. **消融（阶段0 通过后再做）**：以「**证伪无害 / 证伪没人用**」为目标（非「证明有用」）；被证伪的开关一律删除。
+
+> **★ 阶段0 闸门已实测（2026-07，`docs-resources/顺路发现缓存-阶段0闸门-实测.md`）：双否决 → 不合并。**
+> - **Q1 痛点** FAIL：11 个真实 run `folded=0`（从不折叠）、`max_ctx` 5k–28k 远低于折叠阈 160k → 没有「被折叠出去需复原」的内容，痛点不存在。
+> - **Q2 模型会用** FAIL：`--findings-cache` 开 + un-gate + auto-approve，6 个 run 里 Qwen3.6 **一次 append_note 都没主动写**（`notes_written=0`）→ 缓存永远空。
+> - **裁决**：与原调研预测一致，**findings-cache 不合入 main**；阶段1 MVP 代码（离线测 11/11、flag 关零变化）作「已验证证伪」制品留分支存档。边界：只证 --once 自主模式；人驱动 TUI/跨会话 resume 未测（且 resume 本就被判镀金出局）。将来若出现「真会折叠+模型真写 note」的工作负载可复活重测。
 
 > ❌ 已否决（别再提）：草稿式「正则 findings 引擎」——混淆 APK 上正则非噪即哑，且把未核验猜测以系统权威口吻注入直撞[反幻觉铁律]；offGoal 常驻注入与 context-rot 自相矛盾。
 
