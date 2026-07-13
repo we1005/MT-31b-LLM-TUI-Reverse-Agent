@@ -16,7 +16,7 @@
     "lint": "biome check src",
     "format": "biome format --write src",
     "demo": "bash scripts/demo.sh",
-    "test": "bun scripts/test-guards.ts && bun scripts/test-guards-signal.ts && bun scripts/test-redact.ts && bun scripts/test-advisor-agent.ts && bun scripts/test-corpus.ts && bun scripts/test-playbook.ts",
+    "test": "bun scripts/test-guards.ts && bun scripts/test-guards-signal.ts && bun scripts/test-redact.ts && bun scripts/test-advisor-agent.ts && bun scripts/test-corpus.ts && bun scripts/test-playbook.ts && python3 scripts/test-score-anchors.py",
     "test:redact": "bun scripts/test-redact.ts",
     "test:advisor": "bun scripts/test-advisor-local.ts"
   },
