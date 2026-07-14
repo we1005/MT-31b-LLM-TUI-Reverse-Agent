@@ -95,6 +95,58 @@ const SEED: Playbook[] = [
     ],
     source: 'seed',
   },
+  {
+    id: 'mod-sig-bypass',
+    triggerPatterns: [/破解|篡改|crack|\bmod\b|重签|重打包|签名|盗版|授权/i],
+    title: '签名校验绕过识别（审计视角：认出 App 本有自校验但被中和）',
+    steps: [
+      '原签名被破坏、换模组作者自签证书补 v2/v3 是重打包普遍现象——先 apksigner verify --print-certs 看证书 DN/别名（DN 常暴露作者：CN=lushu=鹿蜀 / CN=zhou=zhou45 / CN=editor=NURIK / CN=笙=黯笙 / 伪 O=Google=youarefinished）',
+      'App 若本有签名自校验，mod 常注入"签名过验证"模块中和它——审计指纹：字符串/类 ApkSignatureKillerEx、bin.mt.signature.KillerApplication、com.srpatchv3、libyrf.so/libSignatureKiller*.so；Application 继承链(.super)被改指向 KillerApplication',
+      '机制：反射伪造 PackageManager 返回的签名（改 PackageInfo.CREATOR / 清空 sPackageInfoCache）让自校验读到"原厂证书"——故"有签名校验≠校验有效"',
+      '认出它=该 App 原本就做了签名自校验（记入加固分析）。加固方向：别只靠 PackageManager.getPackageInfo(GET_SIGNATURES)，改 native 直接解析 v2/v3 签名块、且校验结果参与业务解密（非仅 if 分支）',
+    ],
+    source: 'seed',
+    provenance: 'apk-2 99 样本:懒人驾考/扫描王/喜马拉雅/千古诵诗词/无痛单词 等 27 例签名绕过归纳',
+  },
+  {
+    id: 'mod-native-hidden',
+    triggerNativeSo: true,
+    triggerPatterns: [/破解|篡改|crack|\bmod\b|会员|vip|premium|去广告|解锁/i],
+    title: '改动被"方法原生化"隐藏时的止损（grep 不到明文判定就要想到）',
+    steps: [
+      '若按套路 grep 判定/广告方法却"干净得反常"（方法体正常、找不到恒真化），改动很可能被 Dex2C 编译进了 native——不是"没有破解"',
+      '原生化指纹：smali 方法标 native + 对应 .so；lib 下 libstub.so（NP管理器 Apk-Dex2C）、.source "YJ-Dex2C"/云镜(yjaq.xyz)、libcxapkmod.so（Cxapk）、libDexHelper.so；assets 里加密 dex 分片（.Epic / 非标准 dex 头）',
+      '⚠️ 静态到此为界：native 内具体逻辑纯 jadx/smali 读不出——**如实标注"改动已原生化、静态不可还原"，别据"smali 没搜到"就断言"无破解"**（本类任务最常见误判）',
+      '要继续需动态（frida hook 该 native 方法 / 脱壳 dump）；超出纯静态能力时明确把边界交回，不要幻觉补全',
+    ],
+    source: 'seed',
+    provenance: 'apk-2 99 样本:七猫/快对AI/墨迹天气/拷贝漫画 等 Dex2C 原生化归纳',
+  },
+  {
+    id: 'mod-inject-module',
+    triggerPatterns: [/内置|模块|注入|xposed|lsp(atch|osed)?|hook|漫游|猪手/i],
+    title: '免 Root 注入模块识别（去广告/功能增强常靠运行时 Hook，非静态改）',
+    steps: [
+      '"内置X模块/去广告/纯净"常不是静态改字节码，而是整包灌入免 Root 注入框架 + ART Hook 引擎，运行时 Hook 目标方法',
+      '引导指纹：AndroidManifest 的 appComponentFactory 被改成非常规类；多出 *InitProvider（ContentProvider，initOrder 高、最早启动）；LSPatch 元数据（assets/lspatch、LSPAppComponentFactoryStub）',
+      'Hook 引擎指纹：lib 下 liblshook/libpine/liblsplant/libEpic/libaliuhook；org.lsposed/hiddenapibypass；成堆 XC_MethodHook 桩类',
+      '反证信号：原广告 SDK 组件/素材仍原样保留却"没广告"=运行时拦截而非物理删除；具体 Hook 目标常被混淆/原生化，静态只能定位"注入了什么框架、从哪引导"，Hook 了哪个方法多半需动态确认——诚实标注',
+    ],
+    source: 'seed',
+    provenance: 'apk-2 99 样本:微博猪手/B站漫游(Kunkka)/囧次元/搜磁器/拷贝漫画 等注入模块归纳',
+  },
+  {
+    id: 'mod-adfree',
+    triggerPatterns: [/去广告|免广告|无广告|adfree|ad-?free|净化|纯净/i],
+    title: '去广告 mod 的两条路（定位方向）',
+    steps: [
+      '路 A 静态摘除：广告 SDK 入口被 no-op/删组件/改开关资源——grep 广告 SDK 包名（admob/gms.ads、穿山甲 pangle/bytedance、优量汇 GDT/qq、gromore/topon/mintegral）、开屏 SplashAd/插屏 Interstitial 空实现、广告开关字段被改',
+      '路 B 运行时 Hook：见"注入模块"套路——广告组件仍在但被 Hook 空跑；此路静态改动少，别只盯删代码',
+      '先判走哪条：manifest 里广告组件在不在、有没有注入框架指纹；两条路排查锚点不同',
+    ],
+    source: 'seed',
+    provenance: 'apk-2 99 样本:37 例去广告归纳',
+  },
 ];
 
 const LEARNED_PATH = join(process.env['XDG_CONFIG_HOME'] ?? join(homedir(), '.config'), 'rev-agent', 'learned-playbooks.json');

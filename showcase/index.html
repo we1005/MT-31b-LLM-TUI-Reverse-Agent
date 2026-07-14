@@ -160,6 +160,32 @@
       </div>
     </section>
 
+    <!-- 破解审计实录 -->
+    <section class="section" id="audit">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="ref"><span class="ex">EX·04</span> · 破解审计 / crack forensics</div>
+          <h2>99 个被 mod 的 APK，<em>逐个</em>取证审计。</h2>
+          <p>multi-agent 只读复现被攻破路径 + 攻击者工具/流程 + 加固建议，再蒸馏成一套<b>给小模型复用的方法论</b>。原始 99 份攻击复现不公开；此处仅放蒸馏与聚合层。</p>
+        </div>
+        <div class="summary reveal" style="margin-bottom:28px">
+          <div class="sfig"><div class="num" data-count="99"></div><div class="lbl">mod APK 样本</div></div>
+          <div class="sfig"><div class="num" data-count="24"></div><div class="lbl">模组作者 / 渠道</div></div>
+          <div class="sfig"><div class="num" data-count="6"></div><div class="lbl">破解类型</div></div>
+          <div class="sfig"><div class="num" data-count="7"></div><div class="lbl">蒸馏专题文档</div></div>
+        </div>
+        <div class="finds">
+          <div class="glass find reveal"><div class="fig">98<span class="u">/99</span></div><h4>原签名被破坏、换作者自签</h4><p>重打包 + 自签重签 v2/v3 是绝对普遍的前置动作；证书 DN 常直接暴露作者（CN=lushu→鹿蜀、CN=zhou→zhou45）。</p></div>
+          <div class="glass find reveal" data-d="1"><div class="fig">62<span class="u">%</span></div><h4>签名绕过 ⇄ 会员恒真 共现</h4><p>见到 ApkSignatureKillerEx / KillerApplication，多半同包还有权益判定被恒真化——两者联动找，省一半盲搜。</p></div>
+          <div class="glass find reveal" data-d="2"><div class="fig">37<span class="u">%</span></div><h4>越强的 App 越靠 native 化 / 注入</h4><p>头部 App（微博/B站/喜马拉雅）用 Dex2C 原生化、加固壳、ART Hook 藏改动，静态只能到机制层：强加固样本确证率仅 37%（整体 57%）。</p></div>
+        </div>
+        <div class="reveal" style="margin-top:26px;display:flex;gap:12px;flex-wrap:wrap">
+          <a class="btn btn-ghost" href="./docs.html?p=安全审计-moded-APK审计方法论与套路总纲">审计方法论总纲 →</a>
+          <a class="btn btn-ghost" href="./docs.html?p=安全审计-apk-2-99样本聚合分析">99 样本聚合分析 →</a>
+        </div>
+      </div>
+    </section>
+
     <!-- 结案摘要 -->
     <section class="section">
       <div class="wrap">

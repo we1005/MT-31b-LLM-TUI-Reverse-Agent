@@ -142,6 +142,55 @@
       "chars": 3380
     },
     {
+      "slug": "安全审计-攻击机制图谱-签名绕过与注入与原生化",
+      "file": "安全审计-攻击机制图谱-签名绕过与注入与原生化.md",
+      "title": "攻击机制图谱 —— 签名绕过 / 判定恒真化 / Dex2C原生化 / 免Root注入 / 加固壳 / 去广告",
+      "group": "破解审计 · APK Crack Forensics",
+      "chars": 21632
+    },
+    {
+      "slug": "安全审计-攻击者画像-模组作者与工具链",
+      "file": "安全审计-攻击者画像-模组作者与工具链.md",
+      "title": "安全审计:攻击者(模组作者/分发渠道)画像 + 工具链指纹",
+      "group": "破解审计 · APK Crack Forensics",
+      "chars": 15254
+    },
+    {
+      "slug": "安全审计-加固对策手册",
+      "file": "安全审计-加固对策手册.md",
+      "title": "安全审计 — 加固对策手册（面向被 Mod 的 App 开发者）",
+      "group": "破解审计 · APK Crack Forensics",
+      "chars": 11009
+    },
+    {
+      "slug": "安全审计-破解类型与排查方向",
+      "file": "安全审计-破解类型与排查方向.md",
+      "title": "安全审计:按破解类型的排查方向与决策树",
+      "group": "破解审计 · APK Crack Forensics",
+      "chars": 13044
+    },
+    {
+      "slug": "安全审计-apk-2-99样本聚合分析",
+      "file": "安全审计-apk-2-99样本聚合分析.md",
+      "title": "99 例违规 Mod APK 聚合分析：破解类型、作者指纹与加固对抗态势",
+      "group": "破解审计 · APK Crack Forensics",
+      "chars": 8542
+    },
+    {
+      "slug": "安全审计-moded-APK审计-SKILL",
+      "file": "安全审计-moded-APK审计-SKILL.md",
+      "title": "moded APK 破解审计 — Skill 协议",
+      "group": "破解审计 · APK Crack Forensics",
+      "chars": 2505
+    },
+    {
+      "slug": "安全审计-moded-APK审计方法论与套路总纲",
+      "file": "安全审计-moded-APK审计方法论与套路总纲.md",
+      "title": "moded APK 破解审计 · 方法论与套路总纲",
+      "group": "破解审计 · APK Crack Forensics",
+      "chars": 6493
+    },
+    {
       "slug": "出题记录-篡改APK破解审计题库理据",
       "file": "出题记录-篡改APK破解审计题库理据.md",
       "title": "出题记录：篡改 APK 破解审计题库理据（为什么出 / 针对什么 / 结果）",

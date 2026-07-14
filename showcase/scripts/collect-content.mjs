@@ -50,6 +50,7 @@ const DOC_GROUPS = [
   [/^(上下文记忆|记忆系统)/, '记忆系统 · Memory'],
   [/^(混合后端|顺路发现)/, '混合后端 & 探索 · Hybrid'],
   [/^(pi-agent|多Agent)/, '多 Agent 协作 · Multi-agent'],
+  [/^安全审计-(moded|攻击者画像|攻击机制|加固对策|破解类型|apk-2)/, '破解审计 · APK Crack Forensics'],
   [/^(安全审计|测试语料)/, '安全 & 语料 · Security'],
   [/^(LLM|如何给|feature-复盘|实跑记录)/, '协议 & 方法 · Protocol'],
 ]
