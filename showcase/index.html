@@ -186,6 +186,38 @@
       </div>
     </section>
 
+    <!-- 攻击者投入分档 -->
+    <section class="section" id="tiers">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div class="ref"><span class="ex">EX·05</span> · 攻击者投入分档 / effort tiers</div>
+          <h2>86% 的破解,<em>一台手机</em>就够。</h2>
+          <p>把 99 个样本按"攻击者要花多少功夫"重分档:绝大多数一台 root 手机 + 免费 App(MT/NP 管理器、LSPatch)就能破,破解者甚至不用自己做动态分析。防御的目标,就是把他们从 A/B 逼进 C。</p>
+        </div>
+        <div class="reveal">
+          <div class="tierbar" role="img" aria-label="攻击者投入分档:A 纯静态改 46、B 静态注入现成模块 41、C 需真动态 12">
+            <div class="seg a" style="flex:46"><span class="n">46</span><span class="k">A 纯静态改</span></div>
+            <div class="seg b" style="flex:41"><span class="n">41</span><span class="k">B 注入现成模块</span></div>
+            <div class="seg c" style="flex:12"><span class="n">12</span><span class="k">C 需真动态</span></div>
+          </div>
+          <div class="tier-axis">
+            <span>← <b>85 / 99(86%)</b> 一台 root 手机 + 免费工具就能破(作坊一键)</span>
+            <span><b>14%</b> 才需电脑 + 脱壳/抓包/源码重编译 →</span>
+          </div>
+          <div class="tier-legend">
+            <div class="li" style="--sw:#7f8896"><div class="t">A · 纯静态改(46)</div><p>MT/NP 里直接改 smali 判定恒真化、删广告组件、改资源 + 一键重签。</p></div>
+            <div class="li" style="--sw:var(--slate)"><div class="t">B · 静态注入现成模块(41)</div><p>不改逻辑,套现成轮子:MT 一键签名过验证 / NP 一键 Dex2C / LSPatch 打包 Xposed 模块。效果在运行时,但操作是静态,破解者不做分析。</p></div>
+            <div class="li" style="--sw:var(--vermilion)"><div class="t">C · 需真动态(12)</div><p>必须亲自脱壳 dump 真 dex、抓包伪造服务端、或 fork 源码重编译——要电脑、要真功夫,作坊多半放弃。</p></div>
+          </div>
+          <div class="tier-goal"><b>防御 = 把攻击者从 A/B 推进 C。</b> 纯客户端判定几乎必然失守;唯有<b>权益裁决上移服务端</b>(逼其抓包)+ <b>强加固/反 Hook</b>(逼其脱壳),才能把"一键作坊"变成"要真功夫"。</div>
+          <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap">
+            <a class="btn btn-ghost" href="./docs.html?p=安全审计-加固实施清单-把App推进C档">开发者加固清单(代码层) →</a>
+            <a class="btn btn-ghost" href="./docs.html?p=安全审计-静态分析的极限与三条逆向路径-新人指南">静态极限与三条路径 →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- 结案摘要 -->
     <section class="section">
       <div class="wrap">
