@@ -83,6 +83,15 @@ md.inline.ruler.before('link', 'wikilink', (state, silent) => {
   return true
 })
 
+/**
+ * 渲染入口：先剥掉文首 YAML frontmatter（`---\n…\n---`），否则 markdown-it 会把它当正文显示成一大坨。
+ * 只在字符串确实以 `---` 起始时剥离，普通文档不受影响。
+ */
+export function renderMarkdown(raw: string): string {
+  const body = raw.replace(/^﻿?---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*\r?\n?/, '')
+  return md.render(body)
+}
+
 // 外链新窗口打开
 const defaultLinkOpen =
   md.renderer.rules.link_open ||

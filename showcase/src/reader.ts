@@ -1,7 +1,7 @@
 import './style/base.css'
 import './style/reader.css'
 import 'highlight.js/styles/github.css'
-import { md } from './md'
+import { renderMarkdown } from './md'
 import index from './content/index.json'
 
 // mermaid 懒加载
@@ -137,7 +137,7 @@ export function mountReader(kind: Kind) {
   async function render() {
     const slug = current()
     const raw = raws[slug]
-    doc.innerHTML = raw ? md.render(raw) : '<p>未找到该页面。</p>'
+    doc.innerHTML = raw ? renderMarkdown(raw) : '<p>未找到该页面。</p>'
     markActiveSide()
     // 宽表格横向滚动容器
     doc.querySelectorAll('table').forEach((t) => {
@@ -158,12 +158,18 @@ export function mountReader(kind: Kind) {
     if (!a) return
     e.preventDefault(); navigate(decodeURIComponent(a.dataset.slug || ''))
   })
-  // 正文里的维基链接（?p=）也走前端路由
+  // 正文里的维基链接（?p=）与相对 .md 交叉链接都走前端路由（否则 [文本](xxx.md) 会跳出 SPA 变 404）
   doc.addEventListener('click', (e) => {
     const a = (e.target as HTMLElement).closest('a') as HTMLAnchorElement | null
     if (!a) return
     const href = a.getAttribute('href') || ''
     if (href.startsWith('?p=')) { e.preventDefault(); navigate(decodeURIComponent(href.slice(3))) }
+    else if (!/^(https?:|mailto:|#)/i.test(href) && /\.md(\?|#|$)/i.test(href)) {
+      // 相对 .md 链接 → 取文件名去扩展名作 slug，走 ?p= 路由
+      e.preventDefault()
+      const slug = decodeURIComponent(href.split(/[?#]/)[0].replace(/^.*\//, '').replace(/\.md$/i, ''))
+      navigate(slug)
+    }
   })
   window.addEventListener('popstate', () => render())
   filter.addEventListener('input', () => buildSidebar(filter.value))
