@@ -2,8 +2,10 @@ import './style/base.css'
 import './style/landing.css'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { registerPWA } from './pwa'
 
 gsap.registerPlugin(ScrollTrigger)
+registerPWA()
 
 const HERO_IN = ['.hero-eye', '.hero-tag', '.hero-sub', '.hero-cta']
 

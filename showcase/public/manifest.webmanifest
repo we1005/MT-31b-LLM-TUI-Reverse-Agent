@@ -1,0 +1,22 @@
+{
+  "name": "rev-agent · 逆向取证 agent",
+  "short_name": "rev-agent",
+  "description": "本地 Qwen3.6-35B 驱动的只读安卓逆向取证 agent：实测文档 · Wiki · 保姆级教程。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#14181f",
+  "theme_color": "#14181f",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "保姆级教程", "url": "./tutorial.html" },
+    { "name": "实测文档", "url": "./docs.html" },
+    { "name": "Wiki", "url": "./wiki.html" }
+  ]
+}

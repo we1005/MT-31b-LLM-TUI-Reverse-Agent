@@ -13,6 +13,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         docs: resolve(__dirname, 'docs.html'),
         wiki: resolve(__dirname, 'wiki.html'),
+        tutorial: resolve(__dirname, 'tutorial.html'),
       },
     },
   },

@@ -2,6 +2,7 @@ import './style/base.css'
 import './style/reader.css'
 import 'highlight.js/styles/github.css'
 import { renderMarkdown } from './md'
+import { registerPWA } from './pwa'
 import index from './content/index.json'
 
 // mermaid 懒加载
@@ -21,10 +22,13 @@ function loadMermaid() {
 }
 
 type Entry = { slug: string; title: string; group?: string }
-type Kind = 'docs' | 'wiki'
+type Kind = 'docs' | 'wiki' | 'tutorial'
 
 const rawDocs = import.meta.glob('./content/docs/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const rawWiki = import.meta.glob('./content/wiki/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const rawTut = import.meta.glob('./content/tutorial/*.md', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+
+const KIND_LABEL: Record<Kind, string> = { docs: '实测文档', wiki: 'Wiki', tutorial: '保姆级教程' }
 
 const slugFromPath = (p: string) => decodeURIComponent(p.split('/').pop() || '').replace(/\.md$/, '')
 function bySlug(raws: Record<string, string>) {
@@ -35,8 +39,9 @@ function bySlug(raws: Record<string, string>) {
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string)
 
 export function mountReader(kind: Kind) {
+  registerPWA()
   const list = ((index as Record<string, Entry[]>)[kind] || []).filter((e) => e.slug)
-  const raws = bySlug(kind === 'docs' ? rawDocs : rawWiki)
+  const raws = bySlug(kind === 'docs' ? rawDocs : kind === 'wiki' ? rawWiki : rawTut)
   const app = document.getElementById('app')!
 
   app.innerHTML = `
@@ -46,6 +51,7 @@ export function mountReader(kind: Kind) {
         <div class="rnav-mid">
           <a href="./docs.html" class="${kind === 'docs' ? 'active' : ''}">实测文档</a>
           <a href="./wiki.html" class="${kind === 'wiki' ? 'active' : ''}">Wiki</a>
+          <a href="./tutorial.html" class="${kind === 'tutorial' ? 'active' : ''}">保姆级教程</a>
         </div>
         <div class="rnav-right">
           <button id="themeBtn" class="theme-btn" title="切换 Markdown 渲染主题" aria-label="切换渲染主题"><span class="sw"></span><span class="tt">取证</span></button>
@@ -55,13 +61,21 @@ export function mountReader(kind: Kind) {
       </div>
     </nav>
     <div class="reader">
-      <aside id="sidebar" class="sidebar"></aside>
+      <aside id="sidebar" class="sidebar">
+        <nav class="side-cross">
+          <a href="./docs.html" class="${kind === 'docs' ? 'active' : ''}">实测文档</a>
+          <a href="./wiki.html" class="${kind === 'wiki' ? 'active' : ''}">Wiki</a>
+          <a href="./tutorial.html" class="${kind === 'tutorial' ? 'active' : ''}">教程</a>
+        </nav>
+        <div id="sidelist" class="sidelist"></div>
+      </aside>
       <div id="scrim" class="scrim"></div>
-      <main class="content"><article id="doc" class="md-body"></article><div class="doc-foot">rev-agent · ${kind === 'docs' ? 'docs-resources' : 'wiki'} · 生成于本地实测</div></main>
+      <main class="content"><article id="doc" class="md-body"></article><div class="doc-foot">rev-agent · ${kind === 'docs' ? 'docs-resources' : kind === 'tutorial' ? '安卓逆向保姆级教程' : 'wiki'} · 生成于本地实测</div></main>
       <aside class="toc-col"><nav id="toc" class="toc"></nav></aside>
     </div>`
 
   const sidebar = document.getElementById('sidebar')!
+  const sidelist = document.getElementById('sidelist')!
   const doc = document.getElementById('doc')!
   const toc = document.getElementById('toc')!
   const filter = document.getElementById('filter') as HTMLInputElement
@@ -98,12 +112,12 @@ export function mountReader(kind: Kind) {
     const ql = q.trim().toLowerCase()
     const shown = list.filter((e) => !ql || e.title.toLowerCase().includes(ql) || e.slug.toLowerCase().includes(ql))
     let html = ''
-    if (kind === 'docs') {
+    if (kind === 'docs' || kind === 'tutorial') {
       const groups = new Map<string, Entry[]>()
       for (const e of shown) { const g = e.group || '其它'; (groups.get(g) || groups.set(g, []).get(g)!).push(e) }
       for (const [g, items] of groups) html += `<div class="side-group">${esc(g)}</div>` + items.map(linkHtml).join('')
     } else html = shown.map(linkHtml).join('')
-    sidebar.innerHTML = html || `<div class="side-empty">无匹配</div>`
+    sidelist.innerHTML = html || `<div class="side-empty">无匹配</div>`
     markActiveSide()
   }
   function markActiveSide() {
@@ -177,7 +191,7 @@ export function mountReader(kind: Kind) {
   scrim.addEventListener('click', closeMenu)
   content.addEventListener('scroll', () => requestAnimationFrame(spy), { passive: true })
 
-  document.title = `rev-agent · ${kind === 'docs' ? '实测文档' : 'Wiki'}`
+  document.title = `rev-agent · ${KIND_LABEL[kind]}`
   buildSidebar()
   render()
 }
