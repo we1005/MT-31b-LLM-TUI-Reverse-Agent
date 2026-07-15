@@ -175,3 +175,11 @@
 .tier-legend .li .t { font-family: var(--font-sans); font-weight: 600; font-size: 14px; color: var(--ink); }
 .tier-legend .li p { font-size: 12.5px; color: var(--graphite); margin-top: 4px; line-height: 1.6; }
 .tier-goal { margin-top: 22px; padding: 15px 18px; background: var(--vermilion-wash); border-left: 3px solid var(--vermilion); border-radius: 6px; font-size: 14px; color: var(--ink); line-height: 1.7; }
+
+/* 首页「入口」区：三个子模块 portal 卡片 */
+.find.portal { display: block; text-decoration: none; color: inherit; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.find.portal:hover { transform: translateY(-3px); border-color: var(--slate); box-shadow: 0 8px 24px rgba(20,24,31,.10); }
+.find.portal h4 { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 8px; }
+.find.portal h4 .a { color: var(--vermilion); transition: transform .18s ease; }
+.find.portal:hover h4 .a { transform: translateX(4px); }
+.find .ptag { display: inline-block; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--vermilion); margin-bottom: 6px; }

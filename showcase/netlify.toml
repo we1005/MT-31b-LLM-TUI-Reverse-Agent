@@ -24,6 +24,10 @@
   from = "/wiki"
   to = "/wiki.html"
   status = 200
+[[redirects]]
+  from = "/tutorial"
+  to = "/tutorial.html"
+  status = 200
 
 [[headers]]
   for = "/*"
