@@ -146,7 +146,7 @@
       "file": "安全审计-方法原生化Dex2C-开源工具全景与NP云端一键真相.md",
       "title": "方法原生化 Dex2C · 开源工具全景 + NP 云端一键真相(威胁情报)",
       "group": "破解审计 · APK Crack Forensics",
-      "chars": 4957
+      "chars": 5144
     },
     {
       "slug": "安全审计-方法原生化Dex2C-原理保姆级详解-给后端工程师",
@@ -231,6 +231,13 @@
       "title": "MT 管理器\"一键过签名校验\" · 机制逆向与正向实现路径",
       "group": "破解审计 · APK Crack Forensics",
       "chars": 7655
+    },
+    {
+      "slug": "安全审计-MT与NP管理器-全功能逆向分析总报告",
+      "file": "安全审计-MT与NP管理器-全功能逆向分析总报告.md",
+      "title": "MT & NP 管理器 · 全功能逆向分析总报告(最终版)",
+      "group": "破解审计 · APK Crack Forensics",
+      "chars": 19011
     },
     {
       "slug": "出题记录-篡改APK破解审计题库理据",
