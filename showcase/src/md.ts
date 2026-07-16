@@ -44,14 +44,16 @@ export const md: MarkdownIt = new MarkdownIt({
     if (l === 'mermaid') {
       return `<pre class="mermaid">${md.utils.escapeHtml(str)}</pre>`
     }
-    if (l && hljs.getLanguage(l)) {
+    // 有语法高亮的语言才上色；纯文本/无语言/未知语言 → 标记 .plain，用正文颜色
+    const isPlain = !l || l === 'text' || l === 'plaintext' || !hljs.getLanguage(l)
+    if (!isPlain) {
       try {
         return `<pre class="code"><code class="hljs language-${l}">${hljs.highlight(str, { language: l }).value}</code></pre>`
       } catch {
         /* fallthrough */
       }
     }
-    return `<pre class="code"><code class="hljs">${md.utils.escapeHtml(str)}</code></pre>`
+    return `<pre class="code plain"><code class="hljs">${md.utils.escapeHtml(str)}</code></pre>`
   },
 }).use(anchor, {
   permalink: anchor.permalink.headerLink(),

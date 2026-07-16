@@ -93,11 +93,11 @@ exploration/wrap 提醒改读 ledger.hopCount()。dedup 守卫[新]防重复读�
 - **迷路干预升级**：exploration nudge 从一次性→可复触发+升级(hops=0 且每再积 exploreCap 次工具调用介入一次；
   第1次换反向追踪策略、第≥2次判定起点难定位强制收尾报告卡点，不放任到 maxSteps)。收编 explorationNudged→explorationNudges 计数。
 - **首 token 独立超时(修真缺陷)**：原 stepTimeoutMs=120s 是空闲超时,但首token前无part→本地35B prefill大ctx+长CoT
-  可能几分钟才吐首字被误判stall而abort(实测 ctx=113 都被误杀)。改:首token前用 firstTokenTimeoutMs=300s,首token后切120s空闲。编译过。
+  可能几分钟才吐首字被误判stall而abort(实测 ctx=113 都被误杀)。改：首token前用 firstTokenTimeoutMs=300s,首token后切120s空闲。编译过。
 - **⚠️ 后端卡顿阻断验证**：本轮末 lemonade/Qwen3.6 **卡死**(连"说hi"max_tokens=10 都卡满60-90s无响应,models接口秒回但生成卡)。
   demo test4 失败=ctx=113就abort(后端卡,**非ledger回归**)。MCP验证 step4 abort 同因。
   代码侧产出真实且静态验证(ledger单测全过/编译过/前几轮ctx平台化+dedup已实测),但**真实LLM端到端验证被后端阻断**。
-  红线:不能碰服务器/重载模型。**等后端恢复再验 首token超时修复+ledger增益+MCP回归**。未验证不push。
+  红线：不能碰服务器/重载模型。**等后端恢复再验 首token超时修复+ledger增益+MCP回归**。未验证不push。
 
 ## 本轮记忆系统落地小结(已静态验证,待后端恢复端到端验)
 src/memory/ledger.ts(带外台账,单测全过) + agent.ts接入(observe自动填/promoteFromProse捞跳/hasRead-hasGrep去重/renderChainGraph收尾/stats遥测) +
@@ -107,18 +107,18 @@ src/memory/ledger.ts(带外台账,单测全过) + agent.ts接入(observe自动�
 ## Round 3 — 多样化题库(30题) + 并发卡死教训 + 串行铁律
 
 **后端无关的实质推进**(后端卡死期间做的真实工作)：
-- **反编译 +2 产物**：CHM阅读器(87类,阅读器) + 抖音dysbb(5274类,social/native)。现共 7 产物:MT/NP/modv6/mtmod/via/chm/dy,覆盖 文件管理器/浏览器/阅读器/社交。
-- **建题库 30 题**(workflow wf_d7765e98,落 scratchpad/ctf/bank-multi.json)：7 app 各 3-4 题,每题带 **ground truth(真实源码验证 file:line)** + **memoryStress(压测记忆系统哪点)** + **predictedFailure(预测失败模式)**。类型:链路追踪7/找类7/跨包6/安全点6/加固4。难度覆盖 easy-hard。
-  例:Via广告拦截链 p4.j→p4.a(抽象默认null)→p4.b(组合遍历List)→空WebResourceResponse(text/plain);Via自有加密 b9.w0 AES/CBC/PKCS5+RSA/ECB+PBKDF2迭代次数。全部 verified。
+- **反编译 +2 产物**：CHM阅读器(87类,阅读器) + 抖音dysbb(5274类,social/native)。现共 7 产物：MT/NP/modv6/mtmod/via/chm/dy,覆盖 文件管理器/浏览器/阅读器/社交。
+- **建题库 30 题**(workflow wf_d7765e98,落 scratchpad/ctf/bank-multi.json)：7 app 各 3-4 题,每题带 **ground truth(真实源码验证 file:line)** + **memoryStress(压测记忆系统哪点)** + **predictedFailure(预测失败模式)**。类型：链路追踪7/找类7/跨包6/安全点6/加固4。难度覆盖 easy-hard。
+  例：Via广告拦截链 p4.j→p4.a(抽象默认null)→p4.b(组合遍历List)→空WebResourceResponse(text/plain);Via自有加密 b9.w0 AES/CBC/PKCS5+RSA/ECB+PBKDF2迭代次数。全部 verified。
 
 **🔴 最重要发现——后端卡死是我自己并发误用造成的**：
-- 用户点破:**lemonade 只支持单并发**。我之前同时跑多个后台 --once(Via/首token探针/MCP-led),把后端挤死。
+- 用户点破：**lemonade 只支持单并发**。我之前同时跑多个后台 --once(Via/首token探针/MCP-led),把后端挤死。
 - 一度误判"后端故障需重载",实际是并发。并发搞死后光停客户端救不回,需服务器侧重启。
 - **铁律**(记入 [[lemonade_single_concurrency]]):rev-agent/lemonade 调用**必须串行**,任何时候只一个在跑。
   Claude workflow 并行出题OK(不碰lemonade),只有碰lemonade的调用要串行。
 - 已删旧 2h cron(0f9d4c15,防它 fire 时并发),只留 **30m loop e942d367**(prompt 含串行探活指令)。
 
-**当前状态**：后端仍需服务器侧恢复(被之前并发搞死)。题库30题就绪,等后端恢复后**串行**批量 live 验证:
+**当前状态**：后端仍需服务器侧恢复(被之前并发搞死)。题库30题就绪,等后端恢复后**串行**批量 live 验证：
 首token超时修复(不再ctx=113 abort) + ledger增益(台账自动填/收尾拼图/dedup) + demo/resume回归。**未验证不 push**。
 
 ---

@@ -24,7 +24,7 @@
 | # | 红队意见 | 处置 | 依据 / 为何 |
 |---|---|---|---|
 | 1 | `-p` 无头会自主跑完多轮 tool 循环（架构层强支撑，仍缺端到端实测） | **采纳（定性成立，定量需实测）** | print 走同一 `session.prompt` 并 await 到终态（print-mode.ts:122/126/133-141），agent-loop 无 maxTurns/maxSteps 上限 → 「无硬轮数上限、靠外层 timeout」成立，`timeout 1800` 保留 |
-| 2 | **【最严重】草稿冒烟观察点错了：text `-p` 模式根本不往 stderr 吐 thinking 流** | **完全采纳，已改写第 2.5 节** | 已亲验 print-mode.ts：text 分支只把最终 assistant 文本 `writeRawStdout` 到 **stdout**（:141），只有 error/aborted 走 `console.error`→stderr（:136/:150）；事件订阅 `session.subscribe(...writeRawStdout(...))` 只在 **json 分支**、且写 **stdout**（:104-106）。草稿「盯 `2> *.err` 找 thinking」永远是空的，会误判成接入失败去瞎调 thinkingFormat。**验证 reasoning 通路必须用 `--mode json` 解析 stdout 事件流。** |
+| 2 | **【最严重】草稿冒烟观察点错了：text `-p` 模式根本不往 stderr 吐 thinking 流** | **完全采纳，已改写第 2.5 节** | 已亲验 print-mode.ts：text 分支只把最终 assistant 文本 `writeRawStdout` 到 **stdout**（：141），只有 error/aborted 走 `console.error`→stderr（：136/:150）；事件订阅 `session.subscribe(...writeRawStdout(...))` 只在 **json 分支**、且写 **stdout**（：104-106）。草稿「盯 `2> *.err` 找 thinking」永远是空的，会误判成接入失败去瞎调 thinkingFormat。**验证 reasoning 通路必须用 `--mode json` 解析 stdout 事件流。** |
 | 3 | **【第二严重】`reasoning:true` 不够，`enable_thinking` 被 call-time 的 reasoningEffort 门控** | **采纳，已改写 2.a 与 2.5** | 已亲验 openai-completions.ts:614/616-618：`enable_thinking = !!options?.reasoningEffort`、`chat_template_kwargs = {enable_thinking: !!reasoningEffort, preserve_thinking:true}`。光在 model 写 `reasoning:true` 不开思考，必须当次调用带非空 reasoningEffort。**补充实测发现（比红队更精确）**：`:493` `reasoningEffort = clampedReasoning==="off" ? undefined : clampedReasoning`，而 `DEFAULT_THINKING_LEVEL=medium`（defaults.ts:3）——若 `-p` 路径真把 medium 透传成 reasoningEffort，则默认就 enable_thinking:true。**但"`-p` 是否真的把 default level 流到 reasoningEffort"仍未证实**，列为冒烟必验；保底做法是显式加 `:medium` 后缀（args.ts 支持 `provider/id:thinking`）。 |
 | 4 | 项目本地 `.pi/extensions` trust 无头不卡死 | **采纳（成立）** | `!hasUI` 直接 `return false` 静默拒绝不阻塞（project-trust.ts）；用 `-e` 或全局扩展根本不走项目门控 |
 | 5 | thinkingFormat / maxTokens 填错是**静默降质**不是硬报错，草稿"报错则回退"兜底无效 | **采纳，已改风险表 R2/R10 与 2.a 说明** | 选 `qwen`（顶层 `enable_thinking`）→ llama.cpp 多半静默忽略，思考漏正文，不抛异常；`max_completion_tokens` 同样静默。判定必须靠 json 模式看有无独立 reasoning 事件 + 看正文是否混入思考，不能等报错 |
@@ -211,7 +211,7 @@ pi -e /Volumes/zhitai-7100/reverse-agent/rev-agent/pi/lemonade.ts \
 ### 3.1 题库与判分器现状
 
 - 3 个 crack 题库在 **ephemeral scratchpad**（有丢失风险）：`.../scratchpad/ctf/{bank-crack.json,bank-crack2.json,bank-crack3.json}`，共 19 题（附录 A）。**第一步先 copy 进 git**：`rev-agent/bench/ctf/`（红队第 9 点：紧急）。
-- 判分器 `rev-agent/scripts/score-anchors.py`：用法 `python3 score-anchors.py <bank.json> <results_dir> [out.json]`；对每个 `id` 读 `results_dir/<id>.out`，从 GT（crack 题取 `crack_point`+`chain`+`grade_keywords`，:52-54）抽 file:line/方法()/类名锚点，算归一化命中率 recall，打印每题 + `mean_anchor_recall`，写 `_anchors.json`（:63/:66-68/:80-84）。
+- 判分器 `rev-agent/scripts/score-anchors.py`：用法 `python3 score-anchors.py <bank.json> <results_dir> [out.json]`；对每个 `id` 读 `results_dir/<id>.out`，从 GT（crack 题取 `crack_point`+`chain`+`grade_keywords`，：52-54）抽 file:line/方法()/类名锚点，算归一化命中率 recall，打印每题 + `mean_anchor_recall`，写 `_anchors.json`（：63/:66-68/:80-84）。
 - **判分口径诚实说明**：score-anchors.py 只是**确定性相对 Δ 指标**，不是绝对质量分。crack 题库绝对质量原用**强模型 rubric**（云端 Claude 亲读反编码评审；纯关键词判分已被证不可靠——battery 关键词仅 3/14 命中但真实质量 91，见 `docs-resources/出题记录-篡改APK破解审计题库理据.md:8-9`）。**本仓无 rubric judge 的脚本化实现**（open_question）。故：score-anchors 做可复现机械 A/B，绝对质量仍需人读或云端强模型复核。
 
 ### 3.2 注入 RE 协议为 system prompt（交付物 1）
@@ -398,7 +398,7 @@ echo "报告目录: $OUT"
 
 样例 GT（device-crack-01，题库 `crack_point`/`ground_truth` 字段）：`defpackage/op4.java:71-73` 丢弃 `getBoolean("is_ad_free")` 用 `new kr1(true)` 把 entitlement StateFlow 写死；`op4.l()@489-491` 恒真；`op4.n(boolean)@529-539` 忽略入参强制置真；附 `com/PinkiePie.java` 空方法中和广告（Lucky Patcher 风格）。可作审计输出对照答案。
 
-注意：R1 的 bank-crack.json 条目**无 `chain` 字段**（有 `ground_truth` 但 score-anchors.py 不读它，:52-54 只读 crack_point+chain+grade_keywords）→ R1 锚点只来自 crack_point+grade_keywords，recall 基数偏小属正常（红队第 9 点确认）。
+注意：R1 的 bank-crack.json 条目**无 `chain` 字段**（有 `ground_truth` 但 score-anchors.py 不读它，：52-54 只读 crack_point+chain+grade_keywords）→ R1 锚点只来自 crack_point+grade_keywords，recall 基数偏小属正常（红队第 9 点确认）。
 
 ## 附录 B — 关键源码证据索引（pi 0.80.6 @ /Volumes/zhitai-7100/pi-0.80.6；★=本轮亲验）
 

@@ -126,8 +126,8 @@ node /Volumes/zhitai-7100/pi-0.80.6/packages/coding-agent/dist/cli.js \
 
 **4 路搜索角度（并行，各自 = CTX + 下面一条 + "用 Read/Grep/Glob 实际读文件，只报真读到的 file:line 标 confidence，找不到诚实说")**：
 1. `consume`：搜"pro 状态在哪被消费/判定":grep 去广告、解锁功能、DonateActivity、SettingsActivity 里 if 判某 boolean 决定是否 pro 的地方,反查那个 boolean 来自哪个方法/字段。给 file:line。
-2. `billing`：精读匹配过 billing/purchase 的 defpackage 类(lh2/y60/gn1/l04/p62/w60 等):找 BillingClient purchase 校验、queryPurchases、isPurchased/onPurchasesUpdated 被 stub 或恒真的地方。给 file:line。
-3. `const-true`：搜典型 mod 特征:方法体先读 prefs/billing 结果却丢弃、然后无条件 return true/return 1;或 signature/license 校验被删被短路;或某 static boolean pro 字段被初始化成 true。全 sources 找。给 file:line。
+2. `billing`：精读匹配过 billing/purchase 的 defpackage 类(lh2/y60/gn1/l04/p62/w60 等)：找 BillingClient purchase 校验、queryPurchases、isPurchased/onPurchasesUpdated 被 stub 或恒真的地方。给 file:line。
+3. `const-true`：搜典型 mod 特征：方法体先读 prefs/billing 结果却丢弃、然后无条件 return true/return 1;或 signature/license 校验被删被短路;或某 static boolean pro 字段被初始化成 true。全 sources 找。给 file:line。
 4. `ads-gate`：搜广告门禁(Device Info Pro 主要卖点=去广告):grep AdView/MobileAds/isAdsRemoved/shouldShowAd,看去广告是不是靠同一个 pro 布尔,反查该布尔的赋值/判定点(mod 常在这恒真)。给 file:line。
 
 **案卷综合提示（把 4 路结果喂给强模型，产出 case-file）**：

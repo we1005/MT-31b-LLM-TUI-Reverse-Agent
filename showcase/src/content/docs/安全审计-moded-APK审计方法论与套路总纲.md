@@ -165,4 +165,4 @@
 - [加固对策手册](安全审计-加固对策手册.md)
 - [apk-2 99 样本聚合分析](安全审计-apk-2-99样本聚合分析.md)
 
-> 运行时:rev-agent 已把本总纲的核心套路作为 `crack-audit / mod-sig-bypass / mod-native-hidden / mod-inject-module / mod-adfree` 等 **seed playbook**(硬信号触发、只作参考 context)内置注入,见 `src/playbook.ts`。
+> 运行时：rev-agent 已把本总纲的核心套路作为 `crack-audit / mod-sig-bypass / mod-native-hidden / mod-inject-module / mod-adfree` 等 **seed playbook**(硬信号触发、只作参考 context)内置注入,见 `src/playbook.ts`。

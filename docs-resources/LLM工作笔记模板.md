@@ -13,7 +13,7 @@
 | 字段 | 值 |
 |---|---|
 | 用户原始诉求 | （一句话照抄用户的话，永远不要扩写） |
-| 任务开始时间 | （年-月-日 时:分） |
+| 任务开始时间 | （年-月-日 时：分） |
 | 目标 APK 路径 | `/path/to/target.apk` |
 | 工作目录 | `/tmp/rev-XXX/` |
 | 当前轮次 | 第 N 次会话（重启后 +1） |
@@ -36,7 +36,7 @@
 ## 2. 已完成步骤（按时间顺序追加，不删除）
 
 - [x] `aapt2 dump badging` 完成 → 摘要见 §1
-- [x] `apkid` 完成 → 加固类型: XXX
+- [x] `apkid` 完成 → 加固类型： XXX
 - [x] `apktool d --no-src` 完成 → 输出 `out-apkt/`
 - [x] grep "VipChecker" 命中 5 个文件 → 见 §3
 - [ ] 读 `out-jadx/sources/com/target/utils/Sign.java`

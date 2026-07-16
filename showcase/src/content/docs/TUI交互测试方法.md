@@ -1,16 +1,16 @@
-> 缘起:用户指出'TUI对话测不了'的结论错误(Happy Coder/CC Connect 都能代理 CLI agent 会话)。本文认真研究并给出**可实跑**的 TUI 测试方法。
-> Workflow wh0qu9u4i(4路:PTY自动化/Happy-CC-Connect机制/OpenTUI测试设施+前端结构/后端接口+web前端)。
+> 缘起：用户指出'TUI对话测不了'的结论错误(Happy Coder/CC Connect 都能代理 CLI agent 会话)。本文认真研究并给出**可实跑**的 TUI 测试方法。
+> Workflow wh0qu9u4i(4路：PTY自动化/Happy-CC-Connect机制/OpenTUI测试设施+前端结构/后端接口+web前端)。
 
 > ## ⚠️ 实测校正(我亲自跑过 `scripts/tui-render.test.tsx`,修正下文 workflow agent 的乐观声称)
-> workflow agent 声称"L2a testRender ALL PASS(含帧内容断言)"。**我实测发现这不准确**,诚实修正:
-> - ✅ **交互层可测且正确(5/5 过)**:注入按键 → 真实 `<App>` → `onSubmit` 触发(**推翻"测不了"**);含 CJK/特殊字符的文本经 input→onSubmit **字节完整**(无乱码/无缺失);工具审批 y→true、n→false 两分支都正确 resolve(稳定,带超时护栏不 hang)。
+> workflow agent 声称"L2a testRender ALL PASS(含帧内容断言)"。**我实测发现这不准确**,诚实修正：
+> - ✅ **交互层可测且正确(5/5 过)**：注入按键 → 真实 `<App>` → `onSubmit` 触发(**推翻"测不了"**);含 CJK/特殊字符的文本经 input→onSubmit **字节完整**(无乱码/无缺失);工具审批 y→true、n→false 两分支都正确 resolve(稳定,带超时护栏不 hang)。
 > - ✅ **testRender + CJK rasterize 能力正常**:trivial `<text>HELLO世界</text>` 正确渲染、中文无乱码;`useTerminalDimensions()` 在测试渲染器正确返回 100(非 0)。
 > - ⛔→✅ **【重大更正】早先我判"整 `<App>` 空白 = OpenTUI 无头捕获 nuance"是错的——它其实是两个真实布局 bug,已定位并修复(commit b2884f1 + 392c369)。** 用户坚持"把白屏 fix 掉"是对的。
->   - **Bug1 白屏**:App 外层 `<box width={width} flexGrow={1}>` 缺 `height` 约束;根非 flex 容器,flexGrow 约束不住 → box 长到内容高(23>屏20),`MessageList<scrollbox flexGrow=1>` 吃满整屏 → 输入/预算/笔记被挤出屏 → 全空(初始空消息时连消息都没=纯白屏)。**真 tmux + script 实测:修前仅渲染一个 `›`(3191 字节)。** 修:`useTerminalDimensions` 取 `height` + 外层 box `height={height}`。
->   - **Bug2 笔记行重叠**:贪婪 scrollbox 把可收缩(默认 flexShrink=1)的底部区压扁 → NotesPreview 多行重叠(header 压 line1/丢行)。修:NotesPreview/BudgetBar/输入行 加 `flexShrink={0}`。
->   - **修后真 tmux 实测**:输入占位符/预算条/笔记框(header+4 行各占一行零重叠)全渲染、CJK 正确。`scripts/tui-render.test.tsx` 加 4 条渲染回归(整App非空白+输入/预算可见+笔记不重叠)锁住,11/11 过。
->   - 教训:**headless testRender 的整 App 空白不是"捕获 nuance",是真 bug 信号——individual 组件能渲染而组合体空白=布局塌缩,该查不该甩锅给环境。**
-> - **结论**:像素级渲染正确性以**真实交互终端**为准(可用);**内容缺失/乱码在数据层已被 `tui-render.test.tsx`(输入)+ 几十次 `--once` 实跑(助手输出,均为连贯中文、零替换符)双重覆盖**。自动化像素 diff 完整 App 在本环境不可靠,故 L2a 定位为**交互/数据正确性测试**而非像素测试。
+>   - **Bug1 白屏**:App 外层 `<box width={width} flexGrow={1}>` 缺 `height` 约束;根非 flex 容器,flexGrow 约束不住 → box 长到内容高(23>屏20),`MessageList<scrollbox flexGrow=1>` 吃满整屏 → 输入/预算/笔记被挤出屏 → 全空(初始空消息时连消息都没=纯白屏)。**真 tmux + script 实测：修前仅渲染一个 `›`(3191 字节)。** 修：`useTerminalDimensions` 取 `height` + 外层 box `height={height}`。
+>   - **Bug2 笔记行重叠**：贪婪 scrollbox 把可收缩(默认 flexShrink=1)的底部区压扁 → NotesPreview 多行重叠(header 压 line1/丢行)。修：NotesPreview/BudgetBar/输入行 加 `flexShrink={0}`。
+>   - **修后真 tmux 实测**：输入占位符/预算条/笔记框(header+4 行各占一行零重叠)全渲染、CJK 正确。`scripts/tui-render.test.tsx` 加 4 条渲染回归(整App非空白+输入/预算可见+笔记不重叠)锁住,11/11 过。
+>   - 教训：**headless testRender 的整 App 空白不是"捕获 nuance",是真 bug 信号——individual 组件能渲染而组合体空白=布局塌缩,该查不该甩锅给环境。**
+> - **结论**：像素级渲染正确性以**真实交互终端**为准(可用);**内容缺失/乱码在数据层已被 `tui-render.test.tsx`(输入)+ 几十次 `--once` 实跑(助手输出,均为连贯中文、零替换符)双重覆盖**。自动化像素 diff 完整 App 在本环境不可靠,故 L2a 定位为**交互/数据正确性测试**而非像素测试。
 
 # 如何程序化测试 rev-agent 的 TUI 交互对话
 
@@ -368,24 +368,24 @@ cd /Volumes/zhitai-7100/reverse-agent/rev-agent && expect /tmp/rev.exp
 
 ---
 
-## 附:真实做题会话 bug 猎 + 美观核验(2026-07-12,commit 见 git)
+## 附：真实做题会话 bug 猎 + 美观核验(2026-07-12,commit 见 git)
 > 用户要求"在真实做题的多轮 TUI 交互中找 bug(简单命令暴露不出严重问题)"+ 保证美观。实测如下。
 
 ### A. 真实做题会话(`scripts/tui-real-session.test.tsx`,真 Agent+真工具+lemonade)
 经 App 的 onSubmit 路径驱动**真实 2 轮逆向问题**(复刻 run-interactive 接线),**7/7 过**:
-- 第1题「找 MT 主 Activity 入口类」:**5 次真工具调用 + 623 reasoning delta + 376 assistant delta + done,零 agent error**。
-- 第2题多轮跟进「它继承自哪个基类」:仍流式 + done(计数器重置生效、未卡死)。
+- 第1题「找 MT 主 Activity 入口类」：**5 次真工具调用 + 623 reasoning delta + 376 assistant delta + done,零 agent error**。
+- 第2题多轮跟进「它继承自哪个基类」：仍流式 + done(计数器重置生效、未卡死)。
 - 全程**无进程崩溃**(uncaughtException/unhandledRejection)。
 → 交互/逻辑层在真实负载下**无 bug**;多轮、流式、真工具执行、审批(自动放行)全通。
 
 ### B. ⚠️ 发现并修的真实稳定性 bug:MessageList 未知 role 崩溃 → 白屏
-个体组件渲染(`testRender` 单渲 MessageList,**非空白,可捕获**——与整 App 空白不同)时暴露:`ROLE_STYLE[m.role].fg` 对**任何不在 ROLE_STYLE 的 role 直接抛 TypeError**,一条坏消息炸掉**整个消息流→白屏**,无 fallback。
+个体组件渲染(`testRender` 单渲 MessageList,**非空白,可捕获**——与整 App 空白不同)时暴露：`ROLE_STYLE[m.role].fg` 对**任何不在 ROLE_STYLE 的 role 直接抛 TypeError**,一条坏消息炸掉**整个消息流→白屏**,无 fallback。
 - 现状 App 派发的 8 个 role 都在表内(正常不触发),但**加新 role/拼错/外部消息即白屏**=稳定性地雷。
 - **已修**:`const style = ROLE_STYLE[m.role] ?? ROLE_STYLE.system`(未知 role 回退,永不炸屏)。实测含 `weird-unknown` role 的列表不再崩、正常渲染。
 
 ### C. 美观核验(个体组件真实渲染帧)
 - **消息流**:role 色+图标前缀区分清晰——`›`用户(cyan)/`💭`思考(暗灰)/`→[grep]`工具调(magenta)/`  ←`结果(缩进灰)/`  ✗`拒(红)/`✗`错(红)/`⚠`系统(灰);CJK 无乱码;层次干净。
 - **BudgetBar**:`████░░░ 56.0k/80.0k (70%)` 填充条+数字,清爽(70% 转黄)。
-- **ToolApproval**:圆角边框卡片 `╭─╮`+`⚠ 工具审批:<name>`+JSON args,美观。
+- **ToolApproval**：圆角边框卡片 `╭─╮`+`⚠ 工具审批:<name>`+JSON args,美观。
 - **CJK 边框对齐**:headless capture 里 CJK 行右框列偏移,经分析=captureCharFrame 把宽字符表示为 1 字符串位(占 2 cell)的**表示 artifact**,真实终端 cell 上对齐(建议真机扫一眼确认)。
 → 个体组件**渲染精美、色彩语义清晰、CJK 正确**;整 App 的 captureCharFrame 空白是 OpenTUI 无头捕获 nuance(非美观问题,真机可用)。

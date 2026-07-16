@@ -416,7 +416,7 @@ NP apksig **v4/fs-verity 验证链**(V4SchemeVerifier.verify→parseAndVerifySig
 ## 第 12 轮（2026-07-11）：新任务类型（native 边界 / 枚举 / 持久化）—— 诚实性 + 广度
 
 ### 1. 为什么出题
-前 11 轮以链路追踪为主。第 12 轮换**新任务类型**探未测维度：native 边界题(测**诚实性**:是否如实标注"需 frida/动态"而非幻觉 .so 内部)、枚举题(测**广度**:列全某集合)、持久化子系统理解题。
+前 11 轮以链路追踪为主。第 12 轮换**新任务类型**探未测维度：native 边界题(测**诚实性**：是否如实标注"需 frida/动态"而非幻觉 .so 内部)、枚举题(测**广度**：列全某集合)、持久化子系统理解题。
 
 ### 2/3. 题目与能力
 - **via-r12-enum-download-actions**（enumerate）：列全 DownloadService.onStartCommand switch 的 5 个 action 常量。测穷举完整性。

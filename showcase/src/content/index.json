@@ -165,7 +165,7 @@
     {
       "slug": "安全审计-攻击者画像-模组作者与工具链",
       "file": "安全审计-攻击者画像-模组作者与工具链.md",
-      "title": "安全审计:攻击者(模组作者/分发渠道)画像 + 工具链指纹",
+      "title": "安全审计：攻击者(模组作者/分发渠道)画像 + 工具链指纹",
       "group": "破解审计 · APK Crack Forensics",
       "chars": 15254
     },
@@ -193,7 +193,7 @@
     {
       "slug": "安全审计-破解类型与排查方向",
       "file": "安全审计-破解类型与排查方向.md",
-      "title": "安全审计:按破解类型的排查方向与决策树",
+      "title": "安全审计：按破解类型的排查方向与决策树",
       "group": "破解审计 · APK Crack Forensics",
       "chars": 13044
     },
@@ -245,6 +245,13 @@
       "title": "MT & NP 管理器 · 全功能逆向分析总报告(最终版)",
       "group": "破解审计 · APK Crack Forensics",
       "chars": 19011
+    },
+    {
+      "slug": "部署-Netlify额度耗尽与Cloudflare-Pages迁移-TODO",
+      "file": "部署-Netlify额度耗尽与Cloudflare-Pages迁移-TODO.md",
+      "title": "部署状态存档 & 迁移 TODO（Netlify 额度耗尽 → Cloudflare Pages）",
+      "group": "其它 · Misc",
+      "chars": 4161
     },
     {
       "slug": "出题记录-篡改APK破解审计题库理据",
@@ -368,7 +375,7 @@
     {
       "slug": "pi-ai-reasoning借鉴分析",
       "file": "pi-ai-reasoning借鉴分析.md",
-      "title": "定点借鉴分析:pi-ai 的 reasoning_content 解析 → 硬化 rev-agent 最脆的 SSE hack",
+      "title": "定点借鉴分析：pi-ai 的 reasoning_content 解析 → 硬化 rev-agent 最脆的 SSE hack",
       "group": "其它 · Misc",
       "chars": 4329
     },
@@ -510,12 +517,12 @@
       "file": "00-教程总纲与术语总表.md",
       "title": "安卓逆向 · 保姆级系列教程 · 总纲与术语总表",
       "group": "开始 · Start",
-      "chars": 4769
+      "chars": 6336
     },
     {
       "slug": "01-安卓App骨架-APK与DEX与ART",
       "file": "01-安卓App骨架-APK与DEX与ART.md",
-      "title": "安卓 App 的骨架:APK、DEX、ART",
+      "title": "安卓 App 的骨架：APK、DEX、ART",
       "group": "一 · 地基 Foundations",
       "chars": 14467
     },
@@ -529,35 +536,35 @@
     {
       "slug": "03-ART运行时-类加载与反射与JNI",
       "file": "03-ART运行时-类加载与反射与JNI.md",
-      "title": "ART 运行时:类加载、Application、继承链、反射、JNI",
+      "title": "ART 运行时：类加载、Application、继承链、反射、JNI",
       "group": "一 · 地基 Foundations",
       "chars": 15154
     },
     {
       "slug": "04-资源系统-arsc与AXML",
       "file": "04-资源系统-arsc与AXML.md",
-      "title": "资源系统:resources.arsc 与 AXML",
+      "title": "资源系统：resources.arsc 与 AXML",
       "group": "一 · 地基 Foundations",
       "chars": 15279
     },
     {
       "slug": "05-APK签名体系-v1v2v3v4",
       "file": "05-APK签名体系-v1v2v3v4.md",
-      "title": "APK 签名体系:v1/v2/v3/v4、证书、密钥库",
+      "title": "APK 签名体系：v1/v2/v3/v4、证书、密钥库",
       "group": "二 · 签名与完整性 Signing",
       "chars": 13775
     },
     {
       "slug": "06-签名校验与防篡改",
       "file": "06-签名校验与防篡改.md",
-      "title": "06 · 签名校验与防篡改:自校验 vs 系统校验",
+      "title": "06 · 签名校验与防篡改：自校验 vs 系统校验",
       "group": "二 · 签名与完整性 Signing",
       "chars": 13756
     },
     {
       "slug": "07-静态分析工具链",
       "file": "07-静态分析工具链.md",
-      "title": "07 · 静态分析工具链:apktool / jadx / baksmali / dex2jar / androguard / aapt2",
+      "title": "07 · 静态分析工具链：apktool / jadx / baksmali / dex2jar / androguard / aapt2",
       "group": "三 · 逆向工具链 Toolchain",
       "chars": 17774
     },
@@ -578,21 +585,21 @@
     {
       "slug": "10-方法原生化-Dex2C与VMP",
       "file": "10-方法原生化-Dex2C与VMP.md",
-      "title": "方法原生化:Dex2C 与 VMP",
+      "title": "方法原生化：Dex2C 与 VMP",
       "group": "三 · 逆向工具链 Toolchain",
       "chars": 10908
     },
     {
       "slug": "11-签名校验绕过全景",
       "file": "11-签名校验绕过全景.md",
-      "title": "签名校验绕过全景:五大流派",
+      "title": "签名校验绕过全景：五大流派",
       "group": "四 · 攻防串联 Chain",
       "chars": 18232
     },
     {
       "slug": "12-违规改机链路6环",
       "file": "12-违规改机链路6环.md",
-      "title": "12 · 违规改机链路:6 环全景(总复习)",
+      "title": "12 · 违规改机链路：6 环全景(总复习)",
       "group": "四 · 攻防串联 Chain",
       "chars": 15508
     },
@@ -606,7 +613,7 @@
     {
       "slug": "14-防御方视角-检测与加固",
       "file": "14-防御方视角-检测与加固.md",
-      "title": "14 · 防御方视角:检测指纹与加固对策",
+      "title": "14 · 防御方视角：检测指纹与加固对策",
       "group": "四 · 攻防串联 Chain",
       "chars": 15236
     }
