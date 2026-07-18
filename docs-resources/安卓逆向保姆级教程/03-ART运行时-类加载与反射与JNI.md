@@ -199,10 +199,10 @@ MyApplication                          MyApplication
 MultiDexApplication                    MultiDexApplication
    │ .super                               │ .super  ← 就改了这一行!
    ▼                                      ▼
-Application (系统基类)                  KillerApplication  ← 塞进来的新基类
-                                           │ .super
-                                           ▼
-                                        Application (系统基类)
+Application (系统基类)                 KillerApplication  ← 塞进来的新基类
+                                          │ .super
+                                          ▼
+                                       Application (系统基类)
 ```
 
 效果是：`AndroidManifest.xml` 里写的还是 `android:name="com.foo.MyApplication"`,**diff 面小到只有一行 smali**,静态比对"清单里声明了什么类"完全看不出异常——但只要 App 一启动、`MyApplication` 一被创建,**整条链上的 `<clinit>` 依次触发**,新插入的 `KillerApplication.<clinit>`(以及它的 `onCreate`/静态方法)就会被**自动执行**,不需要任何显式调用。这就是"移花接木"字面意思：嫁接的枝子(`KillerApplication`)结的果子,长在了看起来还是原来那棵树(`MyApplication`)上。

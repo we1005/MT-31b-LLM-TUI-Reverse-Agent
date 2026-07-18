@@ -67,8 +67,8 @@ X.509 是一个**通用的证书编码标准**,TLS 网站证书、代码签名�
 APK(=ZIP)
 ├── META-INF/
 │   ├── MANIFEST.MF   ← 每个文件的摘要清单
-│   ├── CERT.SF        ← 对 MANIFEST.MF 的"摘要的摘要" + 逐条目摘要
-│   └── CERT.RSA        ← 对 CERT.SF 的数字签名 + 证书本体(PKCS#7 格式)
+│   ├── CERT.SF       ← 对 MANIFEST.MF 的"摘要的摘要" + 逐条目摘要
+│   └── CERT.RSA      ← 对 CERT.SF 的数字签名 + 证书本体(PKCS#7 格式)
 ├── classes.dex
 ├── AndroidManifest.xml
 ├── resources.arsc
@@ -122,19 +122,19 @@ v2 的签名数据存放在一个新增的区块——**APK Signing Block**—�
 ```
 APK 文件物理布局(v2/v3 签名后):
 
-┌───────────────────────────────┐
-│ ZIP Local File Headers + 数据   │  ← classes.dex / resources.arsc / res/... 的实际内容
-├───────────────────────────────┤
-│ 【APK Signing Block】           │  ← v2/v3 签名数据全部塞在这里
-│   size(8字节) ...               │
+┌──────────────────────────────────┐
+│ ZIP Local File Headers + 数据    │  ← classes.dex / resources.arsc / res/... 的实际内容
+├──────────────────────────────────┤
+│ 【APK Signing Block】            │  ← v2/v3 签名数据全部塞在这里
+│   size(8字节) ...                │
 │   ID-Value 键值对们              │
 │   ... size(8字节,和开头一致)     │
 │   魔数 "APK Sig Block 42"(16字节)│
-├───────────────────────────────┤
-│ ZIP Central Directory          │  ← 记录每个条目在哪
-├───────────────────────────────┤
-│ End of Central Directory(EOCD) │  ← 记录 Central Directory 在哪、多大
-└───────────────────────────────┘
+├──────────────────────────────────┤
+│ ZIP Central Directory            │  ← 记录每个条目在哪
+├──────────────────────────────────┤
+│ End of Central Directory(EOCD)   │  ← 记录 Central Directory 在哪、多大
+└──────────────────────────────────┘
 ```
 
 妙处在于：普通的 ZIP/unzip 工具打开一个文件时,是**从文件末尾找 EOCD**,靠 EOCD 里记录的"中央目录偏移量"跳过去读 Central Directory,再由 Central Directory 找每个条目——它压根不会去看 EOCD 和 Local File Header 之间那一大块"多出来的" APK Signing Block,所以一个 v2 签名的 APK**依然是一个完全合法、能被任意 ZIP 工具正常打开的 ZIP 文件**,只是安卓的包管理器额外知道去这个特定位置找签名。识别这个区块靠的就是那个固定的 16 字节魔数字符串 **`"APK Sig Block 42"`**——扫描工具/脱壳脚本经常靠 grep 这个魔数字符串来快速定位一个 APK 用了哪代签名方案。
@@ -227,7 +227,7 @@ AOSP(Android Open Source Project,安卓的开源上游项目)源码仓库里,`bu
               apksigner + 私钥/证书(来自 keystore)
                         │
         ┌───────────────┼────────────────┐
-        ▼                ▼                 ▼
+        ▼               ▼                ▼
    v1: 塞 META-INF/   v2/v3: 插入 APK    v4: 生成旁挂的
    MANIFEST.MF/       Signing Block      .apk.idsig
    CERT.SF/CERT.RSA   (逐块摘要+签名)    (Merkle 树)
@@ -240,7 +240,7 @@ AOSP(Android Open Source Project,安卓的开源上游项目)源码仓库里,`bu
       PackageManager: 按 minSdkVersion/设备API 挑最高可用方案校验
                          │
         ┌────────────────┴─────────────────┐
-        ▼                                    ▼
+        ▼                                  ▼
   全新安装:证书记录进包数据库           覆盖安装(同包名已存在旧版):
                                        比对新旧证书是否一致/可 lineage 验证
                                              │

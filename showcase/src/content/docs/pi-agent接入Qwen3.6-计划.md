@@ -62,31 +62,31 @@
 ### 1.2 架构图
 
 ```
-                    ┌──────────────────────────────────────────────┐
-                    │  串行驱动脚本 (shell, 严格单进程)              │
-                    │  for 每题/每App:  pi -p ...  > <id>.out       │
-                    │  ★ lemonade 单并发铁律：绝不并行起多个 pi     │
-                    └───────────────┬──────────────────────────────┘
+                    ┌───────────────────────────────────────────┐
+                    │  串行驱动脚本 (shell, 严格单进程)         │
+                    │  for 每题/每App:  pi -p ...  > <id>.out   │
+                    │  ★ lemonade 单并发铁律：绝不并行起多个 pi │
+                    └───────────────┬───────────────────────────┘
                                     │ 一次一个进程
                                     ▼
-    ┌──────────────────────────────────────────────────────────────────┐
+    ┌───────────────────────────────────────────────────────────────────┐
     │  pi CLI  (/Volumes/zhitai-7100/pi-0.80.6, dist/cli.js, v0.80.6)   │
-    │  -p 无头 ──► agent-loop (while: LLM→toolCall→exec→回灌 到终态)     │
+    │  -p 无头 ──► agent-loop (while: LLM→toolCall→exec→回灌 到终态)    │
     │  reasoning 门控: enable_thinking = !!reasoningEffort              │
     │       (openai-completions.ts:614/616-618) → 必须带 thinking level │
     │  工具: 审计只读 → -t read,grep,find,ls (排除 bash/edit/write)     │
     │  系统提示: 交付1 --append-system-prompt / 交付2 --system-prompt   │
-    │  provider "lemonade": api=openai-completions,                    │
+    │  provider "lemonade": api=openai-completions,                     │
     │       compat.thinkingFormat=qwen-chat-template                    │
-    └───────────────────────────┬──────────────────────────────────────┘
+    └───────────────────────────┬───────────────────────────────────────┘
                                 │ OpenAI SDK → baseUrl + /chat/completions
                                 ▼
-    ┌──────────────────────────────────────────────────────────────────┐
+    ┌───────────────────────────────────────────────────────────────────┐
     │  lemonade (llama.cpp 系) http://192.168.9.101:13305/api/v1        │
     │  model: Huihui-Qwen3.6-35B-A3B-abliterated-ggml                   │
-    │  reasoning_content 流 → pi 解析成 thinking (仅在 json 事件流可见)  │
+    │  reasoning_content 流 → pi 解析成 thinking (仅在 json 事件流可见) │
     │       (openai-completions.ts:364-395, 注释点名 llama.cpp)         │
-    └──────────────────────────────────────────────────────────────────┘
+    └───────────────────────────────────────────────────────────────────┘
                                 │ 输出: text→stdout最终文本 / json→stdout事件流
                                 ▼
     判分/归档: 交付1 score-anchors.py→_anchors.json；交付2 人读四段式报告

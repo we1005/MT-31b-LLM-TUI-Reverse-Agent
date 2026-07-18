@@ -67,7 +67,7 @@ res.zip
 ├─ files/javac/ext/classes.jar           (178,424 字节)
 ├─ files/javac/version                   ("===" 一行)
 └─ files/plugin/                         (28 个插件)
-   ├─ bin.plugin.translator.baidu        (百度翻译)
+   ├─ bin.plugin.translator.baidu         (百度翻译)
    ├─ bin.plugin.translator.baiduapi
    ├─ bin.plugin.translator.bing
    ├─ bin.plugin.translator.google
@@ -359,18 +359,18 @@ versionName 里的 `xml-fix-final` 暗示某次 patch 后 manifest 解析出错�
 ```
               MT 2.14.5 官方                MT 2.14.5-MOD-v6
 ─────────────────────────────────────────────────────────────────
-包名         bin.mt.plus                   bin.mt.plus.canary           [+canary]
+包名         bin.mt.plus                   bin.mt.plus.canary                 [+canary]
 versionName  2.14.5                        2.14.5-clone-MOD-v6-xml-fix-final  [+suffix]
 签名         CN=bin (SHA256 8501DD29...)   CN=Android (testkey, A40DA80A...)  [REPLACE]
-META-INF     BIN.RSA / BIN.SF              MT���.RSA / MT���.SF        [RENAME, 中文乱码]
-appComp.     (none)                        l.ۖۨۛ (= AppComponentFactoryC0825)  [INJECT]
-classes3.dex (原版)                        +l.ۖۨۛ (LSPatch stub factory)      [PATCH]
-classes4.dex (原版)                        +mt.modder.hub.*               [INJECT 4986 类]
-assets/      (无)                          +L00.PKG (8.86 MB, LDPK)       [INJECT]
-assets/      (无)                          +copy_config.json              [INJECT]
-assets/      (无)                          +res.zip (3 MB, VIP 数据)      [INJECT]
-lib/{abi}/   (无 libloader.so)             +libloader.so (35-60 KB)       [INJECT]
-apktool.yml  doNotCompress: arsc,png       doNotCompress: arsc,png,res.zip  [APPEND]
+META-INF     BIN.RSA / BIN.SF              MT���.RSA / MT���.SF               [RENAME, 中文乱码]
+appComp.     (none)                        l.ۖۨۛ (= AppComponentFactoryC0825)    [INJECT]
+classes3.dex (原版)                        +l.ۖۨۛ (LSPatch stub factory)         [PATCH]
+classes4.dex (原版)                        +mt.modder.hub.*                   [INJECT 4986 类]
+assets/      (无)                          +L00.PKG (8.86 MB, LDPK)           [INJECT]
+assets/      (无)                          +copy_config.json                  [INJECT]
+assets/      (无)                          +res.zip (3 MB, VIP 数据)          [INJECT]
+lib/{abi}/   (无 libloader.so)             +libloader.so (35-60 KB)           [INJECT]
+apktool.yml  doNotCompress: arsc,png       doNotCompress: arsc,png,res.zip    [APPEND]
 ```
 
 ## 附录 B：用到的逆向工具链

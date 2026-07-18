@@ -86,6 +86,10 @@ export function mountReader(kind: Kind) {
           <div class="lbl">代码块样式</div>
           <div class="pref-row"><select id="codeStyle" aria-label="代码块样式"></select></div>
         </div>
+        <div class="pref-grp">
+          <div class="lbl">代码块字体(ASCII 图对齐)</div>
+          <div class="pref-row"><select id="codeFont" aria-label="代码块字体"></select></div>
+        </div>
         <div class="pref-foot"><span class="pref-hint">自动保存 · 首个为最适阅读</span><button class="pref-reset" id="prefReset">恢复默认</button></div>
       </div>
     </nav>
@@ -120,8 +124,8 @@ export function mountReader(kind: Kind) {
     try { localStorage.setItem('revmd-theme', t) } catch { /* ignore */ }
     themeBtn.querySelector('.tt')!.textContent = t === 'vue' ? 'Vue' : '取证'
   }
-  let savedTheme = 'forensic'
-  try { savedTheme = localStorage.getItem('revmd-theme') || 'forensic' } catch { /* ignore */ }
+  let savedTheme = 'vue'
+  try { savedTheme = localStorage.getItem('revmd-theme') || 'vue' } catch { /* ignore */ }
   applyTheme(savedTheme)
   themeBtn.addEventListener('click', () => applyTheme(document.documentElement.getAttribute('data-md') === 'vue' ? 'forensic' : 'vue'))
 
@@ -303,7 +307,13 @@ export function mountReader(kind: Kind) {
       const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = f.url; document.head.appendChild(l)
     }
   }
-  const PREF_DEF = { bodyFont: '', bodySize: '16', sideFont: 'notosans', sideSize: '14.5', tocFont: '', tocSize: '14', codeStyle: 'github' }
+  const PREF_DEF = { bodyFont: '', bodySize: '16', sideFont: 'notosans', sideSize: '14.5', tocFont: '', tocSize: '14', codeStyle: 'glasslite', codeFont: 'sarasa' }
+  // 代码块字体:[id, 标签, font-family 栈]。前两个自托管(@font-face 常驻,中文=2×西文)。
+  const CODE_FONTS: [string, string, string][] = [
+    ['sarasa', '更纱黑体等宽 Sarasa Mono · 图对齐最佳(默认)', "'SarasaMonoSC', ui-monospace, 'JetBrains Mono', monospace"],
+    ['lxgwmono', '霞鹜文楷等宽 LXGW · 书卷气(框图不齐)', "'LXGWWenKaiMono', ui-monospace, monospace"],
+    ['sitemono', '站点原等宽 Fira/Plex · 西文连字(框图不齐)', "'Fira Code', 'IBM Plex Mono', ui-monospace, monospace"],
+  ]
   const CODESTYLES: [string, string][] = [
     ['github', 'GitHub 浅色(默认)'], ['onedark', 'One Dark Pro · 深色'], ['dracula', 'Dracula · 吸血鬼'],
     ['catppuccin', 'Catppuccin Mocha · 社区新宠'], ['tokyonight', 'Tokyo Night · 夜东京'], ['nord', 'Nord · 极地蓝'],
@@ -322,6 +332,8 @@ export function mountReader(kind: Kind) {
     root.style.setProperty('--side-size', prefs.sideSize + 'px')
     root.style.setProperty('--toc-size', prefs.tocSize + 'px')
     root.setAttribute('data-codestyle', prefs.codeStyle || 'github')
+    const cf = CODE_FONTS.find((x) => x[0] === prefs.codeFont) || CODE_FONTS[0]
+    root.style.setProperty('--code-font', cf[2])
   }
   const savePrefs = () => { try { localStorage.setItem('revmd-fontprefs', JSON.stringify(prefs)) } catch { /* ignore */ } }
   const prefBtn = document.getElementById('prefBtn')!
@@ -336,11 +348,13 @@ export function mountReader(kind: Kind) {
   const sideSizeV = document.getElementById('sideSizeV')!
   const tocSizeV = document.getElementById('tocSizeV')!
   const codeStyleSel = document.getElementById('codeStyle') as HTMLSelectElement
+  const codeFontSel = document.getElementById('codeFont') as HTMLSelectElement
   const optsHtml = `<option value="">IBM Plex Sans(站点原字体)</option>` + FONTS.map((f) => `<option value="${f.id}">${esc(f.label)}</option>`).join('')
   bodyFontSel.innerHTML = optsHtml; sideFontSel.innerHTML = optsHtml; tocFontSel.innerHTML = optsHtml
   codeStyleSel.innerHTML = CODESTYLES.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')
+  codeFontSel.innerHTML = CODE_FONTS.map((cf) => `<option value="${cf[0]}">${esc(cf[1])}</option>`).join('')
   const syncControls = () => {
-    bodyFontSel.value = prefs.bodyFont; sideFontSel.value = prefs.sideFont; tocFontSel.value = prefs.tocFont; codeStyleSel.value = prefs.codeStyle
+    bodyFontSel.value = prefs.bodyFont; sideFontSel.value = prefs.sideFont; tocFontSel.value = prefs.tocFont; codeStyleSel.value = prefs.codeStyle; codeFontSel.value = prefs.codeFont
     bodySize.value = prefs.bodySize; sideSize.value = prefs.sideSize; tocSize.value = prefs.tocSize
     bodySizeV.textContent = prefs.bodySize + 'px'; sideSizeV.textContent = prefs.sideSize + 'px'; tocSizeV.textContent = prefs.tocSize + 'px'
   }
@@ -352,6 +366,7 @@ export function mountReader(kind: Kind) {
   sideSize.addEventListener('input', () => { prefs.sideSize = sideSize.value; sideSizeV.textContent = sideSize.value + 'px'; applyPrefs(); savePrefs() })
   tocSize.addEventListener('input', () => { prefs.tocSize = tocSize.value; tocSizeV.textContent = tocSize.value + 'px'; applyPrefs(); savePrefs() })
   codeStyleSel.addEventListener('change', () => { prefs.codeStyle = codeStyleSel.value; applyPrefs(); savePrefs() })
+  codeFontSel.addEventListener('change', () => { prefs.codeFont = codeFontSel.value; applyPrefs(); savePrefs() })
   document.getElementById('prefReset')!.addEventListener('click', () => { prefs = { ...PREF_DEF }; syncControls(); applyPrefs(); savePrefs() })
   prefBtn.addEventListener('click', (e) => { e.stopPropagation(); prefPanel.hidden = !prefPanel.hidden })
   document.addEventListener('click', (e) => {

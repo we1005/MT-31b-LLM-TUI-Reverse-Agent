@@ -64,7 +64,7 @@ C1744.m5156(Context, C6030)
   ├─ Signature[].toByteArray()   [转字节]
   ├─ Collections.sort            [排序]
   ├─ c6030.m15609()/resources    [加载期望签名]
-  └─ Arrays.equals() 逐字节比对   [校验]
+  └─ Arrays.equals() 逐字节比对  [校验]
        ▼ (校验通过)
   Native 补充校验 (C10857/C20274)
        ▼ .so (待确认,需 frida)

@@ -24,8 +24,11 @@
 ### 🌐 在线展示：**[reverse-agent-for-small-llm.netlify.app](https://reverse-agent-for-small-llm.netlify.app/)**
 
 [![Netlify](https://img.shields.io/badge/live_demo-Netlify-00C7B7?logo=netlify&logoColor=white)](https://reverse-agent-for-small-llm.netlify.app/)
+[![Mirror](https://img.shields.io/badge/镜像·最新构建-rev--agent--showcase-00C7B7?logo=netlify&logoColor=white)](https://rev-agent-showcase.netlify.app/)
 
 落地页 + [实测文档](https://reverse-agent-for-small-llm.netlify.app/docs) + [Wiki](https://reverse-agent-for-small-llm.netlify.app/wiki)（架构 Mermaid 图 / 机制详解 / 对比 / 精选题目，可切 Typora Vue 渲染主题）
+
+> 🆕 镜像站（含保姆级教程子模块 + 最新构建：Sarasa 等宽字体、ASCII 图对齐修复）：**[rev-agent-showcase.netlify.app](https://rev-agent-showcase.netlify.app/)**
 
 <br/>
 

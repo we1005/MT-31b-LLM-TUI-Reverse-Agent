@@ -59,8 +59,8 @@
   ├─ 重建 ZIP（保持 STORED/DEFLATE 与原 APK 一致 — apktool 的 doNotCompress 列表）
   ├─ zipalign 4 字节对齐
   └─ 签名层
-      ├─ v1 (JAR signature)     → bouncycastle 自实现
-      ├─ v2/v3 (APK Sig Block)  → 内嵌 Google apksigner（NP 抄了 com.android2.apksigner）
+      ├─ v1 (JAR signature)      → bouncycastle 自实现
+      ├─ v2/v3 (APK Sig Block)   → 内嵌 Google apksigner（NP 抄了 com.android2.apksigner）
       └─ keystore 管理           → JKS / PKCS#12 / OpenSSL pk8+x509
 ```
 

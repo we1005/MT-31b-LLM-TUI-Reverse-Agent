@@ -27,7 +27,7 @@
       "file": "pi-agent接入Qwen3.6-计划.md",
       "title": "把本地 Qwen3.6(lemonade) 接入 pi-agent，并驱动两个交付的可执行计划（红队复审终版）",
       "group": "多 Agent 协作 · Multi-agent",
-      "chars": 25434
+      "chars": 25418
     },
     {
       "slug": "pi-agent接入Qwen3.6-实测对比",
@@ -90,7 +90,7 @@
       "file": "上下文记忆系统-架构设计.md",
       "title": "rev-agent 上下文记忆系统设计文档 V2(取代 docs-resources/上下文记忆系统-架构设计.md)",
       "group": "记忆系统 · Memory",
-      "chars": 29838
+      "chars": 29849
     },
     {
       "slug": "框架化-把逆向负担从模型移到框架",
@@ -188,7 +188,7 @@
       "file": "安全审计-静态分析的极限与三条逆向路径-新人指南.md",
       "title": "静态分析的极限 & 逆向 APK 的路径 —— 新人指南",
       "group": "破解审计 · APK Crack Forensics",
-      "chars": 12060
+      "chars": 12063
     },
     {
       "slug": "安全审计-破解类型与排查方向",
@@ -293,7 +293,7 @@
       "file": "收敛优化loop-让小模型追多跳链路不发散.md",
       "title": "收敛优化 loop：让本地 35B 在多跳链路追踪上不发散、能收尾",
       "group": "其它 · Misc",
-      "chars": 3158
+      "chars": 3157
     },
     {
       "slug": "优化记录-跨app",
@@ -307,14 +307,14 @@
       "file": "桌面端 APK Toolbox 架构蓝图.md",
       "title": "桌面端 APK Toolbox 架构蓝图",
       "group": "其它 · Misc",
-      "chars": 10590
+      "chars": 10592
     },
     {
       "slug": "Agent 设计哲学对比 — 长上下文云端模型 vs 本地小模型",
       "file": "Agent 设计哲学对比 — 长上下文云端模型 vs 本地小模型.md",
       "title": "Agent 设计哲学对比 — 长上下文云端模型 vs 本地小模型",
       "group": "其它 · Misc",
-      "chars": 14886
+      "chars": 14858
     },
     {
       "slug": "Android逆向Multi-Agent系统设计-参考价值分析",
@@ -335,7 +335,7 @@
       "file": "Mac 安卓逆向工具与工作流指南.md",
       "title": "Mac 安卓逆向工具与工作流指南（LLM 优化版 v2）",
       "group": "其它 · Misc",
-      "chars": 17012
+      "chars": 16988
     },
     {
       "slug": "MT 2.26.4 与 2.26.5 是否修复 LSPatch v6 攻击的对照分析",
@@ -349,28 +349,28 @@
       "file": "MT 2.26.5 攻击报告.md",
       "title": "MT 管理器 2.26.5 破解指南",
       "group": "其它 · Misc",
-      "chars": 7251
+      "chars": 7248
     },
     {
       "slug": "MT 2.26.5 MCP 实现深度解析与 LSPatch v6 补漏分析",
       "file": "MT 2.26.5 MCP 实现深度解析与 LSPatch v6 补漏分析.md",
       "title": "MT 管理器 2.26.5 MCP 实现深度解析 + LSPatch v6 攻击补漏分析",
       "group": "其它 · Misc",
-      "chars": 13820
+      "chars": 13821
     },
     {
       "slug": "MT_2.26.5_PoC_Report",
       "file": "MT_2.26.5_PoC_Report.md",
       "title": "MT 管理器 2.26.5 漏洞 PoC 报告",
       "group": "其它 · Misc",
-      "chars": 12942
+      "chars": 12891
     },
     {
       "slug": "MT管理器 2.14.5 MOD-v6 破解版逆向审核报告",
       "file": "MT管理器 2.14.5 MOD-v6 破解版逆向审核报告.md",
       "title": "MT 管理器 2.14.5-clone-MOD-v6-xml-fix-final 破解版逆向审核报告",
       "group": "其它 · Misc",
-      "chars": 15852
+      "chars": 15893
     },
     {
       "slug": "pi-ai-reasoning借鉴分析",
@@ -384,7 +384,7 @@
       "file": "rev-agent 前置工作流·文档RAG·蒸馏 三提议深度分析.md",
       "title": "rev-agent 三提议深度分析：前置工作流 / 文档 RAG / 蒸馏",
       "group": "其它 · Misc",
-      "chars": 6610
+      "chars": 6651
     },
     {
       "slug": "rev-agent 完整性审查与打包签名能力判断-存档",
@@ -524,77 +524,77 @@
       "file": "01-安卓App骨架-APK与DEX与ART.md",
       "title": "安卓 App 的骨架：APK、DEX、ART",
       "group": "一 · 地基 Foundations",
-      "chars": 14467
+      "chars": 14457
     },
     {
       "slug": "02-DEX字节码与Smali汇编",
       "file": "02-DEX字节码与Smali汇编.md",
       "title": "DEX 字节码与 Smali 汇编",
       "group": "一 · 地基 Foundations",
-      "chars": 16242
+      "chars": 16280
     },
     {
       "slug": "03-ART运行时-类加载与反射与JNI",
       "file": "03-ART运行时-类加载与反射与JNI.md",
       "title": "ART 运行时：类加载、Application、继承链、反射、JNI",
       "group": "一 · 地基 Foundations",
-      "chars": 15154
+      "chars": 15150
     },
     {
       "slug": "04-资源系统-arsc与AXML",
       "file": "04-资源系统-arsc与AXML.md",
       "title": "资源系统：resources.arsc 与 AXML",
       "group": "一 · 地基 Foundations",
-      "chars": 15279
+      "chars": 15273
     },
     {
       "slug": "05-APK签名体系-v1v2v3v4",
       "file": "05-APK签名体系-v1v2v3v4.md",
       "title": "APK 签名体系：v1/v2/v3/v4、证书、密钥库",
       "group": "二 · 签名与完整性 Signing",
-      "chars": 13775
+      "chars": 13790
     },
     {
       "slug": "06-签名校验与防篡改",
       "file": "06-签名校验与防篡改.md",
       "title": "06 · 签名校验与防篡改：自校验 vs 系统校验",
       "group": "二 · 签名与完整性 Signing",
-      "chars": 13756
+      "chars": 13724
     },
     {
       "slug": "07-静态分析工具链",
       "file": "07-静态分析工具链.md",
       "title": "07 · 静态分析工具链：apktool / jadx / baksmali / dex2jar / androguard / aapt2",
       "group": "三 · 逆向工具链 Toolchain",
-      "chars": 17774
+      "chars": 17767
     },
     {
       "slug": "08-动态分析与Hook",
       "file": "08-动态分析与Hook.md",
       "title": "08 · 动态分析与 Hook:Frida、Xposed/LSPosed、ART hook 内核、LSPatch",
       "group": "三 · 逆向工具链 Toolchain",
-      "chars": 16818
+      "chars": 16815
     },
     {
       "slug": "09-混淆与加固与脱壳",
       "file": "09-混淆与加固与脱壳.md",
       "title": "混淆、加固与脱壳",
       "group": "三 · 逆向工具链 Toolchain",
-      "chars": 16040
+      "chars": 16053
     },
     {
       "slug": "10-方法原生化-Dex2C与VMP",
       "file": "10-方法原生化-Dex2C与VMP.md",
       "title": "方法原生化：Dex2C 与 VMP",
       "group": "三 · 逆向工具链 Toolchain",
-      "chars": 10908
+      "chars": 10915
     },
     {
       "slug": "11-签名校验绕过全景",
       "file": "11-签名校验绕过全景.md",
       "title": "签名校验绕过全景：五大流派",
       "group": "四 · 攻防串联 Chain",
-      "chars": 18232
+      "chars": 18215
     },
     {
       "slug": "12-违规改机链路6环",
@@ -608,14 +608,14 @@
       "file": "13-产品与项目360词典.md",
       "title": "产品与项目 360° 词典",
       "group": "四 · 攻防串联 Chain",
-      "chars": 15274
+      "chars": 15301
     },
     {
       "slug": "14-防御方视角-检测与加固",
       "file": "14-防御方视角-检测与加固.md",
       "title": "14 · 防御方视角：检测指纹与加固对策",
       "group": "四 · 攻防串联 Chain",
-      "chars": 15236
+      "chars": 15248
     }
   ]
 }

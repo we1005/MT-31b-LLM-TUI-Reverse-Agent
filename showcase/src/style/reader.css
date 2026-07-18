@@ -3,6 +3,21 @@
    两套渲染主题：forensic(默认) / vue(Typora Vue)，按钮切换。
    ========================================================================== */
 
+/* 代码块等宽字体(自托管子集,中文严格=2×西文 → ASCII 框图像素级对齐)。
+   Sarasa Mono:框线 │─ 为半角,与文档按显示列对齐的模型完全吻合(默认)。
+   LXGW WenKai Mono:框线为全角,书卷气,但 ASCII 框图不齐(仅供偏好选择)。 */
+@font-face {
+  font-family: 'SarasaMonoSC';
+  src: url('/fonts/SarasaMonoSC.subset.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'LXGWWenKaiMono';
+  src: url('/fonts/LXGWWenKaiMono.subset.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+:root { --code-font: 'SarasaMonoSC', ui-monospace, 'JetBrains Mono', 'IBM Plex Mono', monospace; }
+
 .rnav { position: sticky; top: 0; z-index: 60; height: 60px; background: rgba(231,233,238,0.8); -webkit-backdrop-filter: blur(16px) saturate(140%); backdrop-filter: blur(16px) saturate(140%); border-bottom: 1px solid var(--faint); }
 .rnav-inner { display: flex; align-items: center; gap: 18px; height: 60px; padding: 0 24px; }
 .rnav .brand { display: flex; align-items: baseline; gap: 1px; font-family: var(--font-mono); font-weight: 600; font-size: 16px; color: var(--ink); }
@@ -102,7 +117,7 @@ body.toc-resizing { cursor: col-resize; user-select: none; }
 .md-body ol li::marker { color: var(--graphite); font-family: var(--font-mono); }
 .md-body :not(pre) > code { font-family: var(--font-mono); font-size: .86em; color: var(--vermilion-ink); background: var(--vermilion-wash); border: 1px solid rgba(216,58,43,.16); padding: 1.5px 6px; border-radius: 5px; word-break: break-word; }
 .md-body pre.code { margin: 18px 0; padding: 16px 18px; border-radius: 12px; overflow-x: auto; background: #fbfbfc; border: 1px solid var(--faint); }
-.md-body pre.code code { font-family: var(--font-mono); font-size: 14px; line-height: 1.7; background: none; border: none; padding: 0; color: #24292f; }
+.md-body pre.code code { font-family: var(--code-font); font-size: 14px; line-height: 1.7; background: none; border: none; padding: 0; color: #24292f; }
 :root[data-codestyle="github"] .md-body pre.code.plain code { color: inherit; }  /* 仅 GitHub 风格:纯文本代码块用正文颜色;其它风格用各自配色 */
 .md-body blockquote { margin: 16px 0; padding: 12px 20px; border-radius: 0 10px 10px 0; border-left: 3px solid var(--slate); background: rgba(58,90,134,.06); color: var(--ink-soft); }
 .md-body blockquote p { margin: 6px 0; }
@@ -150,7 +165,7 @@ body.toc-resizing { cursor: col-resize; user-select: none; }
 :root[data-md="vue"] .md-body ol li::marker { color: #34495e; font-family: inherit; }
 :root[data-md="vue"] .md-body :not(pre) > code { font-family: 'Fira Code', var(--font-mono); font-size: .92em; color: #e96900; background: #f8f8f8; border: none; padding: 2px 4px; border-radius: 2px; }
 :root[data-md="vue"] .md-body pre.code { background: #f8f8f8; border: none; border-radius: 4px; }
-:root[data-md="vue"] .md-body pre.code code { font-family: 'Fira Code', var(--font-mono); color: #525252; }
+:root[data-md="vue"] .md-body pre.code code { font-family: var(--code-font); color: #525252; }
 :root[data-md="vue"][data-codestyle="github"] .md-body pre.code.plain code { color: inherit; }
 :root[data-md="vue"] .md-body blockquote { border-left: 4px solid #42b983; background: rgba(66,185,131,.1); color: #777; border-radius: 0; padding: 10px 15px; }
 :root[data-md="vue"] .md-body blockquote strong { color: #42b983; }
@@ -305,3 +320,4 @@ body.toc-resizing { cursor: col-resize; user-select: none; }
 :root[data-codestyle="glasslite"] .md-body pre.code { background: rgba(249,250,252,.58); -webkit-backdrop-filter: blur(28px) saturate(140%); backdrop-filter: blur(28px) saturate(140%); border: 1px solid rgba(255,255,255,.62); box-shadow: 0 18px 48px rgba(20,24,31,.14), inset 0 1px 0 rgba(255,255,255,.72); border-radius: 18px; position: relative; }
 :root[data-codestyle="glasslite"] .md-body pre.code::before { content: ""; position: absolute; top: 17px; left: 18px; width: 12px; height: 12px; border-radius: 50%; background: rgba(255,95,86,.9); box-shadow: 20px 0 rgba(255,189,46,.9), 40px 0 rgba(39,201,63,.9); }
 :root[data-codestyle="glasslite"] .md-body pre.code code { color: #2f333a; }
+:root[data-codestyle="glasslite"] .md-body pre.code.plain code { color: inherit; }  /* 素雅毛玻璃:仅纯文本代码块用正文色 */

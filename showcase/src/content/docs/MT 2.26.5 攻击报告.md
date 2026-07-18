@@ -36,7 +36,7 @@ MT 管理器 2.26.5 虽然增加了 `libmtprotect.so`（2MB）和 seccomp BPF，
         ▼ ⑦ 安装（可与官方版双开共存）
         │
         ▼ ⑧ 启动时 libloader.so hook PMS → 返回伪 CN=bin 签名
-        │      同时解压 res.zip → VIP 插件全部激活
+        │   同时解压 res.zip → VIP 插件全部激活
 ```
 
 ### 2.2 为什么能破解

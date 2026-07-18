@@ -30,7 +30,7 @@ Foo.java / Foo.kt --(javac / kotlinc 编译)--> Foo.class   ← JVM 字节码,�
                                             classes.dex    ← Dalvik 字节码,还不是机器码!
                                                    |
                               ┌────────────────────┴────────────────────┐
-                              v                                          v
+                              v                                         v
                      手机上跑的时候:                              安装/首次运行时:
                   ART 虚拟机边解释边 JIT              dex2oat 提前编译成 .oat(内含机器码)
 ```
@@ -61,7 +61,7 @@ MyApp.apk  (本质是个 ZIP)
 │   ├── arm64-v8a/libfoo.so     ← 真正的机器码!就是你熟悉的 ELF 共享库
 │   ├── armeabi-v7a/libfoo.so
 │   └── x86_64/libfoo.so
-└── META-INF/                ← 签名相关文件(05篇细讲 v1/v2/v3/v4 签名方案)
+└── META-INF/               ← 签名相关文件(05篇细讲 v1/v2/v3/v4 签名方案)
     ├── MANIFEST.MF          ← 每个文件的摘要清单(类似 sha256sum 的列表)
     ├── CERT.SF              ← 对 MANIFEST.MF 的签名描述文件
     └── CERT.RSA / CERT.DSA  ← 实际的签名值 + 证书(公钥)
@@ -87,19 +87,19 @@ MyApp.apk  (本质是个 ZIP)
 先看整条编译链,再逐段拆解：
 
 ```
-   Foo.java              Foo.kt
+   Foo.java             Foo.kt
       |                    |
    javac 编译           kotlinc 编译
       |                    |
       v                    v
-   Foo.class            Foo.class      ← 都是 JVM 字节码格式(.class),Kotlin 编译器直接产出跟
+   Foo.class            Foo.class      ←  都是 JVM 字节码格式(.class),Kotlin 编译器直接产出跟
       \                    /              Java 编译器一样格式的 .class,这是 Kotlin 能无缝
        \                  /               和 Java 互操作的关键
         \                /
          v              v
       ┌──────────────────────┐
-      │   d8 / r8 编译器      │  ← Google 官方工具:把一堆 .class 文件"翻译+合并"成 dex
-      │ (老工具链叫 dx,已弃用) │     字节码,同时做混淆/压缩(R8 = d8 + ProGuard 规则的合体,09篇细讲)
+      │   d8 / r8 编译器     │  ← Google 官方工具:把一堆 .class 文件"翻译+合并"成 dex
+      │(老工具链叫 dx,已弃用)│    字节码,同时做混淆/压缩(R8 = d8 + ProGuard 规则的合体,09篇细讲)
       └──────────────────────┘
                  |
                  v
@@ -145,9 +145,9 @@ classes.dex
 ├── type_ids[]                 ← 类型(类/接口/基本类型)表,指向 string_ids
 ├── proto_ids[]                ← 方法"原型"(参数类型+返回类型的组合)
 ├── field_ids[]                ← 字段引用表(哪个类的哪个字段,什么类型)
-├── method_ids[]                ← 方法引用表(哪个类的哪个方法,什么签名)——64K 限制打的就是这张表
-├── class_defs[]                ← 每个类的定义:父类是谁、实现了哪些接口、有哪些方法/字段
-└── data                         ← 实际的方法字节码(code_item,含每条 opcode)、注解、调试信息等
+├── method_ids[]               ← 方法引用表(哪个类的哪个方法,什么签名)——64K 限制打的就是这张表
+├── class_defs[]               ← 每个类的定义:父类是谁、实现了哪些接口、有哪些方法/字段
+└── data                       ← 实际的方法字节码(code_item,含每条 opcode)、注解、调试信息等
 ```
 
 **这张表结构本身就在替你做逆向工程的一半工作**——`string_ids` 里明晃晃地写着每一个类名、方法名、字符串字面量(除非被混淆);`method_ids`/`field_ids` 精确记录了"谁调用了谁的哪个方法、传了什么类型的参数"。这些信息在 C++ 编译成机器码之后基本**全部丢失**(除非你没 strip 符号表),但 DEX 格式里天然、完整地保留着——这不是逆向工具"猜"出来的,是**编译器为了让虚拟机能正确执行,不得不老老实实写进文件里的**。这正是"DEX 还原度极高"的技术根因,02篇会继续深入到具体的 opcode 和 smali(DEX 的"汇编语言")。

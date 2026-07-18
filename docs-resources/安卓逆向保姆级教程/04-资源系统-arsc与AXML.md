@@ -63,11 +63,11 @@ resources.arsc
          ├─ TypeSpec chunk   (RES_TABLE_TYPE_SPEC_TYPE,声明这个类型一共有几个 entry、
          │                    每个 entry 在不同 config 下的取值是否有差异——用于快速判断
          │                    "这个资源要不要随语言/分辨率变")
-         └─ Type chunk × M    (RES_TABLE_TYPE_TYPE,每个 Config 一份,比如
-                               default / zh-rCN / hdpi / zh-rCN-hdpi ...)
+         └─ Type chunk × M   (RES_TABLE_TYPE_TYPE,每个 Config 一份,比如
+                              default / zh-rCN / hdpi / zh-rCN-hdpi ...)
             └─ Config 描述头  (语言/地区/屏幕密度/横竖屏/API level...)
                └─ entry 数组   (每个 entry = 这个 Config 下,某个资源 ID 对应的具体值,
-                                 可能是直接值 Res_value,也可能是"复合资源"如 style)
+                                可能是直接值 Res_value,也可能是"复合资源"如 style)
 ```
 
 逐层解释,照顾你的直觉：
@@ -138,14 +138,14 @@ public final class R {
 ```
 AXML 文件(以 AndroidManifest.xml 为例)
 ├─ StringPool chunk        (本文件用到的所有标签名/属性名/属性值字符串,去重存一份)
-├─ (可选)ResourceMap chunk  (把属性名字符串映射到系统属性 ID,如 android:name)
+├─ (可选)ResourceMap chunk (把属性名字符串映射到系统属性 ID,如 android:name)
 └─ ResXMLTree 节点事件流,一个个 chunk 顺序排列,读起来像"SAX 事件回放":
    ├─ StartNamespace   (声明 xmlns:android="...")
    ├─ StartElement     <manifest>          → 标签名是 StringPool 里的第几个索引
    │  ├─ Attribute package="com.mt.mgr"    → 属性名/值都是索引,不是文本
    │  ├─ StartElement  <application>
    │  │  ├─ Attribute android:label=@string/app_name  → 值是"资源引用",存的是上面
-   │  │  │                                                第三节那个 0x7f0f0001
+   │  │  │                                              第三节那个 0x7f0f0001
    │  │  ├─ StartElement <activity android:name=".MainActivity">
    │  │  └─ EndElement  </activity>
    │  └─ EndElement    </application>

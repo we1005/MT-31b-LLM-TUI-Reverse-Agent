@@ -197,7 +197,7 @@ Settings → MCP → 配置端口/sessionLimit/operationPath
                 ↓
     sendBroadcast → ServiceC7545.onStartCommand()
                 ↓
-    startForeground(1008, notification)        ← 常驻通知 "APK MCP"
+    startForeground(1008, notification)         ← 常驻通知 "APK MCP"
                 ↓
     new C19184(port)                            ← 注册 8 tools
                 ↓
